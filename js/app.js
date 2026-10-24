@@ -287,7 +287,8 @@ class AutomataApp {
         startState: nfa.startState.toString(),
         acceptStates: nfa.acceptStates.map(s => s.toString())
       };
-      this.graphControllers.nfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark });
+      if (this.graphControllers.nfa) this.graphControllers.nfa.destroy();
+      this.graphControllers.nfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark, idPrefix: 'nfa' });
       this.renderedState.nfa = true;
     } else if (cardId === 'card-dfa' && !this.renderedState.dfa) {
       const container = document.getElementById('dfa-graph-viewport');
@@ -312,7 +313,8 @@ class AutomataApp {
         startState: dfa.states.find(s => s.isStart)?.id || 'd0',
         acceptStates: dfa.states.filter(s => s.isAccept).map(s => s.id)
       };
-      this.graphControllers.dfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark });
+      if (this.graphControllers.dfa) this.graphControllers.dfa.destroy();
+      this.graphControllers.dfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark, idPrefix: 'dfa' });
       this.renderedState.dfa = true;
     } else if (cardId === 'card-hopcroft' && !this.renderedState.minDfa) {
       const container = document.getElementById('min-dfa-graph-viewport');
@@ -336,7 +338,8 @@ class AutomataApp {
         startState: minimizedDfa.states.find(s => s.isStart)?.id || 'd0',
         acceptStates: minimizedDfa.states.filter(s => s.isAccept).map(s => s.id)
       };
-      this.graphControllers.minDfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark });
+      if (this.graphControllers.minDfa) this.graphControllers.minDfa.destroy();
+      this.graphControllers.minDfa = GraphRenderer.render(container, graphModel, { isDark: this.isDark, idPrefix: 'min-dfa' });
       this.renderedState.minDfa = true;
     }
   }

@@ -49,3 +49,43 @@ test('handles self-loops and bidirectional edges without throwing', () => {
   const svgString = GraphRenderer.createSvgString(graphModel, { isDark: false });
   assert.ok(svgString.length > 500);
 });
+
+test('parameterizes marker IDs with idPrefix and computes dynamic viewBox for wide graphs', () => {
+  const wideGraph = {
+    states: [
+      { id: '0', label: '0', isStart: true },
+      { id: '1', label: '1' },
+      { id: '2', label: '2' },
+      { id: '3', label: '3' },
+      { id: '4', label: '4' },
+      { id: '5', label: '5' },
+      { id: '6', label: '6' },
+      { id: '7', label: '7' },
+      { id: '8', label: '8' },
+      { id: '9', label: '9', isAccept: true }
+    ],
+    transitions: [
+      { from: '0', to: '1', symbol: 'a' },
+      { from: '1', to: '2', symbol: 'a' },
+      { from: '2', to: '3', symbol: 'a' },
+      { from: '3', to: '4', symbol: 'a' },
+      { from: '4', to: '5', symbol: 'a' },
+      { from: '5', to: '6', symbol: 'a' },
+      { from: '6', to: '7', symbol: 'a' },
+      { from: '7', to: '8', symbol: 'a' },
+      { from: '8', to: '9', symbol: 'a' }
+    ],
+    startState: '0',
+    acceptStates: ['9']
+  };
+
+  const svg = GraphRenderer.createSvgString(wideGraph, { idPrefix: 'test-nfa', isDark: true, width: 800 });
+  assert.ok(svg.includes('id="arrow-test-nfa-dark"'));
+  assert.ok(svg.includes('url(#arrow-test-nfa-dark)'));
+  
+  // ViewBox should have width >= 1000 to cover 10 layers
+  const viewBoxMatch = svg.match(/viewBox="0 0 (\d+) \d+"/);
+  assert.ok(viewBoxMatch !== null);
+  const vbWidth = parseInt(viewBoxMatch[1], 10);
+  assert.ok(vbWidth >= 1000, `Expected viewBox width >= 1000, got ${vbWidth}`);
+});

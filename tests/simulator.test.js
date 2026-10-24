@@ -48,3 +48,13 @@ test('handles characters outside alphabet safely with descriptive rejection reas
   assert.equal(res.accepted, false);
   assert.ok(res.reason.includes("'x'"));
 });
+
+test('simulates \\e as epsilon / empty string input', () => {
+  const parsed = RegexParser.parse('a*');
+  const nfa = Thompson.build(parsed.postfix);
+  const { dfa } = SubsetConstruction.convert(nfa, parsed.alphabet);
+  const { minimizedDfa } = HopcroftMinimizer.minimize(dfa);
+  
+  const res = StringSimulator.simulate(minimizedDfa, '\\e');
+  assert.equal(res.accepted, true);
+});

@@ -100,6 +100,7 @@ export class GraphRenderer {
     const isDark = options.isDark !== false;
     const width = options.width || 900;
     const height = options.height || 450;
+    const idPrefix = options.idPrefix || 'g' + Math.floor(Math.random() * 10000);
     const R = 22; // node radius
 
     const states = graphModel.states || [];
@@ -125,7 +126,19 @@ export class GraphRenderer {
 
     const positions = GraphRenderer.computeLayout(states, transitions, startStateId, width, height);
 
+    // Compute dynamic width to prevent right-edge clipping
+    let maxX = 0;
+    for (const pos of positions.values()) {
+      if (pos.x > maxX) maxX = pos.x;
+    }
+    const viewBoxWidth = Math.max(width, maxX + 90);
+
     // Theme palette
+    const themeKey = isDark ? 'dark' : 'light';
+    const markerId = `arrow-${idPrefix}-${themeKey}`;
+    const startMarkerId = `start-arrow-${idPrefix}-${themeKey}`;
+    const shadowId = `shadow-${idPrefix}`;
+
     const bg = isDark ? '#111827' : '#ffffff';
     const nodeFill = isDark ? '#1f2937' : '#f9fafb';
     const nodeStroke = isDark ? '#60a5fa' : '#2563eb';
@@ -135,15 +148,15 @@ export class GraphRenderer {
     const edgeBg = isDark ? '#111827' : '#ffffff';
     const startArrowColor = isDark ? '#34d399' : '#059669';
 
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="automata-svg" style="width:100%;height:100%;background:${bg};font-family:system-ui,-apple-system,sans-serif;">
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxWidth} ${height}" class="automata-svg" style="width:100%;height:100%;background:${bg};font-family:system-ui,-apple-system,sans-serif;">
       <defs>
-        <marker id="arrow-${isDark ? 'dark' : 'light'}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="${edgeStroke}" />
         </marker>
-        <marker id="start-arrow-${isDark ? 'dark' : 'light'}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <marker id="${startMarkerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="${startArrowColor}" />
         </marker>
-        <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+        <filter id="${shadowId}" x="-10%" y="-10%" width="120%" height="120%">
           <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="${isDark ? '0.3' : '0.1'}" />
         </filter>
       </defs>
@@ -156,7 +169,7 @@ export class GraphRenderer {
       const targetX = pos.x - R - 2;
       svg += `
         <g class="start-indicator">
-          <line x1="${startX}" y1="${pos.y}" x2="${targetX}" y2="${pos.y}" stroke="${startArrowColor}" stroke-width="2.5" marker-end="url(#start-arrow-${isDark ? 'dark' : 'light'})" />
+          <line x1="${startX}" y1="${pos.y}" x2="${targetX}" y2="${pos.y}" stroke="${startArrowColor}" stroke-width="2.5" marker-end="url(#${startMarkerId})" />
           <text x="${startX - 6}" y="${pos.y + 4}" fill="${startArrowColor}" font-size="11" font-weight="bold" text-anchor="end">start</text>
         </g>`;
     }
@@ -176,7 +189,7 @@ export class GraphRenderer {
         const loopPath = `M ${x - 10} ${y + 2} C ${x - 30} ${y - 38}, ${x + 30} ${y - 38}, ${x + 10} ${y + 2}`;
         svg += `
           <g class="edge self-loop">
-            <path d="${loopPath}" fill="none" stroke="${edgeStroke}" stroke-width="1.8" marker-end="url(#arrow-${isDark ? 'dark' : 'light'})" />
+            <path d="${loopPath}" fill="none" stroke="${edgeStroke}" stroke-width="1.8" marker-end="url(#${markerId})" />
             <rect x="${x - 12}" y="${y - 48}" width="24" height="15" rx="3" fill="${edgeBg}" opacity="0.9" />
             <text x="${x}" y="${y - 37}" fill="${edgeTextFill}" font-size="11" font-weight="600" text-anchor="middle">${t.symbol}</text>
           </g>`;
@@ -222,7 +235,7 @@ export class GraphRenderer {
 
         svg += `
           <g class="edge">
-            <path d="${pathD}" fill="none" stroke="${edgeStroke}" stroke-width="1.8" marker-end="url(#arrow-${isDark ? 'dark' : 'light'})" />
+            <path d="${pathD}" fill="none" stroke="${edgeStroke}" stroke-width="1.8" marker-end="url(#${markerId})" />
             <rect x="${labelX - 12}" y="${labelY - 9}" width="24" height="15" rx="3" fill="${edgeBg}" opacity="0.9" />
             <text x="${labelX}" y="${labelY + 2}" fill="${edgeTextFill}" font-size="11" font-weight="600" text-anchor="middle">${t.symbol}</text>
           </g>`;
@@ -240,7 +253,7 @@ export class GraphRenderer {
 
       svg += `
         <g class="node" data-id="${state.id}" transform="translate(${pos.x}, ${pos.y})">
-          <circle r="${R}" fill="${nodeFill}" stroke="${nodeStroke}" stroke-width="2.2" filter="url(#shadow)" />`;
+          <circle r="${R}" fill="${nodeFill}" stroke="${nodeStroke}" stroke-width="2.2" filter="url(#${shadowId})" />`;
 
       if (isAccept) {
         svg += `
@@ -329,42 +342,53 @@ export class GraphRenderer {
     container.querySelector('.btn-zoom-out')?.addEventListener('click', zoomOut);
     container.querySelector('.btn-zoom-reset')?.addEventListener('click', resetZoom);
 
-    // Pan & Drag events
-    host?.addEventListener('mousedown', (e) => {
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      translateX = e.clientX - startX;
+      translateY = e.clientY - startY;
+      updateTransform();
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        if (host) host.style.cursor = 'grab';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      }
+    };
+
+    // Pan & Drag events: attach to window only while dragging
+    const onMouseDown = (e) => {
       if (e.target.closest('button')) return;
       isDragging = true;
       host.style.cursor = 'grabbing';
       startX = e.clientX - translateX;
       startY = e.clientY - translateY;
-    });
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    };
 
-    window.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      translateX = e.clientX - startX;
-      translateY = e.clientY - startY;
-      updateTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        if (host) host.style.cursor = 'grab';
-      }
-    });
+    host?.addEventListener('mousedown', onMouseDown);
 
     // Wheel zoom
-    host?.addEventListener('wheel', (e) => {
+    const onWheel = (e) => {
       e.preventDefault();
       const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
       scale = Math.max(0.3, Math.min(3.0, scale * zoomFactor));
       updateTransform();
-    }, { passive: false });
+    };
+    host?.addEventListener('wheel', onWheel, { passive: false });
 
     return {
       zoomIn,
       zoomOut,
       resetZoom,
       destroy: () => {
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        host?.removeEventListener('mousedown', onMouseDown);
+        host?.removeEventListener('wheel', onWheel);
         container.innerHTML = '';
       }
     };

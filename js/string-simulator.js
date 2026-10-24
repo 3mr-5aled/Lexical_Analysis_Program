@@ -31,7 +31,7 @@ export class StringSimulator {
     const path = [];
 
     // Normalize empty / epsilon string
-    const chars = (inputString === 'ε' || inputString === 'ϵ' || inputString === '@' || inputString === '')
+    const chars = (inputString === 'ε' || inputString === 'ϵ' || inputString === '@' || inputString === '\\e' || inputString === '')
       ? []
       : inputString.split('');
 

@@ -33,3 +33,18 @@ test('handles complex FCIS example (ab|ac)*', () => {
   assert.deepEqual(result.alphabet, ['a', 'b', 'c']);
   assert.deepEqual(result.postfix, ['a', 'b', '.', 'a', 'c', '.', '|', '*']);
 });
+
+test('rejects alternation without left operand like (|a)', () => {
+  const result = RegexParser.parse('(|a)');
+  assert.ok(result.error !== null);
+  assert.ok(result.error.includes('without left operand') || result.error.includes('Invalid alternation'));
+});
+
+test('rejects invalid explicit concatenation dots like .a and a..b', () => {
+  const res1 = RegexParser.parse('.a');
+  assert.ok(res1.error !== null);
+  const res2 = RegexParser.parse('a.');
+  assert.ok(res2.error !== null);
+  const res3 = RegexParser.parse('a..b');
+  assert.ok(res3.error !== null);
+});

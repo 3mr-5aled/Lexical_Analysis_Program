@@ -91,8 +91,16 @@ export class RegexParser {
       if (idx === 0 && (token === '|' || RegexParser.isPostfixOp(token))) {
         return { tokens: rawTokens, postfix: [], alphabet: [], error: `Unexpected operator '${token}' at start of expression` };
       }
+      if (token === '|' && (idx === 0 || rawTokens[idx - 1] === '(' || rawTokens[idx - 1] === '|')) {
+        return { tokens: rawTokens, postfix: [], alphabet: [], error: 'Invalid alternation "|" without left operand' };
+      }
       if (token === '|' && (idx === rawTokens.length - 1 || rawTokens[idx + 1] === '|' || rawTokens[idx + 1] === ')')) {
         return { tokens: rawTokens, postfix: [], alphabet: [], error: 'Invalid alternation "|" without right operand' };
+      }
+      if (token === '.') {
+        if (idx === 0 || idx === rawTokens.length - 1 || rawTokens[idx - 1] === '(' || rawTokens[idx - 1] === '.' || rawTokens[idx + 1] === ')' || rawTokens[idx + 1] === '.') {
+          return { tokens: rawTokens, postfix: [], alphabet: [], error: 'Invalid concatenation "." without operands' };
+        }
       }
       if (RegexParser.isPostfixOp(token) && idx > 0 && (rawTokens[idx - 1] === '(' || rawTokens[idx - 1] === '|')) {
         return { tokens: rawTokens, postfix: [], alphabet: [], error: `Operator '${token}' has no preceding operand` };
