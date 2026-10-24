@@ -1,0 +1,9 @@
+{
+  "name": "compiler-automata-interactive",
+  "version": "1.0.0",
+  "description": "Interactive Compiler Theory Automata Visualizer (FCIS '26)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
