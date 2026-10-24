@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compiler Automata Visualizer - FCIS '26</title>
+  <meta name="description" content="Interactive Regular Expression to Minimized DFA Pipeline (Thompson, Subset Construction, Hopcroft Minimization)">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="brand-icon">λ</div>
+        <div>
+          <div style="display:flex;align-items:center;">
+            <h1 class="brand-title">Compiler Automata Visualizer</h1>
+            <span class="brand-badge">FCIS '26</span>
+          </div>
+          <p class="brand-desc">Interactive RE → NFA (Thompson) → DFA (Subset) → Minimized DFA (Hopcroft)</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Light / Dark Theme">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">Light Mode</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Control Panel -->
+    <section class="control-card">
+      <div class="preset-row">
+        <span class="preset-label">📚 Course Presets:</span>
+        <select id="preset-select" class="preset-select">
+          <option value="" disabled selected>Select an example from Lectures & Labs...</option>
+          <option value="(ab|ac)*">Lab 4 - Example 1: (ab|ac)*</option>
+          <option value="(a|b)*a(a|b|ε)">Lab 4 - Example 2: (a|b)*a(a|b|ε)</option>
+          <option value="(ba)+(a*b*|a*)">Lab 4 - Example 3: (ba)+(a*b*|a*)</option>
+          <option value="a|abc*">Lecture 4 - Slide 47: a|abc*</option>
+          <option value="(ab|c)*">Lab 3 - Exercise 1: (ab|c)*</option>
+          <option value="(a|b)*a">Lab 3 - Exercise 2: (a|b)*a</option>
+          <option value="a*b(a|b)*">Lab 3 - Self Study: a*b(a|b)*</option>
+          <option value="(a|b)(a|b|0|1)*">Lecture 3 - Identifiers: Letter(Letter|Digit)*</option>
+        </select>
+        <div class="quick-chips">
+          <button type="button" class="chip-btn" data-insert="ε" title="Insert Epsilon">[ + ε ]</button>
+          <button type="button" class="chip-btn" data-insert="|" title="Insert Alternation">[ | ]</button>
+          <button type="button" class="chip-btn" data-insert="*" title="Insert Kleene Star">[ * ]</button>
+          <button type="button" class="chip-btn" data-insert="+" title="Insert Plus">[ + ]</button>
+          <button type="button" class="chip-btn" data-insert="?" title="Insert Optional">[ ? ]</button>
+          <button type="button" class="chip-btn" data-insert="()" title="Insert Parentheses">[ ( ) ]</button>
+        </div>
+      </div>
+
+      <div class="input-row">
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            id="regex-input" 
+            class="regex-input" 
+            placeholder="Enter regular expression, e.g. (ab|ac)*" 
+            value="(ab|ac)*" 
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        <button id="btn-convert" class="btn-primary">
+          <span>⚡</span> Convert & Analyze
+        </button>
+        <button id="btn-clear" class="btn-secondary" title="Clear input">
+          Clear
+        </button>
+      </div>
+
+      <div id="error-banner" class="error-banner"></div>
+    </section>
+
+    <!-- Global Actions Bar -->
+    <div class="global-actions-bar">
+      <div class="status-summary">
+        <span class="dot-indicator"></span>
+        <span id="status-text">Pipeline ready. Click any box to expand and view on-demand.</span>
+      </div>
+      <div class="toggle-all-group">
+        <button id="btn-expand-all" class="btn-text">Expand All</button>
+        <button id="btn-collapse-all" class="btn-text">Collapse All</button>
+      </div>
+    </div>
+
+    <!-- BOX 1: Thompson NFA -->
+    <div class="accordion-card open" id="card-nfa">
+      <div class="card-header" data-target="card-nfa">
+        <div class="card-header-left">
+          <span class="card-step-num">1</span>
+          <div>
+            <span class="card-title">Thompson's Construction (NFA)</span>
+            <span class="card-subtitle">RE → Non-deterministic Finite Automaton</span>
+          </div>
+        </div>
+        <div class="card-badges">
+          <span id="nfa-stats-badge" class="stage-badge">0 States</span>
+          <span class="toggle-arrow">▼</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="graph-legend">
+          <div class="legend-item"><span class="legend-icon-start"></span> Start State</div>
+          <div class="legend-item"><span class="legend-circle"></span> Regular State</div>
+          <div class="legend-item"><span class="legend-double-circle"></span> Accept State</div>
+          <div class="legend-item"><span style="color:var(--text-muted);font-weight:bold;">ε</span> Epsilon Transition</div>
+        </div>
+        <div id="nfa-graph-viewport" class="graph-viewport-container">
+          <div class="graph-empty-placeholder">NFA diagram will render here...</div>
+        </div>
+
+        <div class="table-section">
+          <h3 class="table-heading">NFA Transition Table</h3>
+          <div class="table-responsive">
+            <table id="nfa-transition-table" class="academic-table">
+              <thead>
+                <tr>
+                  <th>From State</th>
+                  <th>Input Symbol</th>
+                  <th>To State</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOX 2: Subset Construction (DFA) -->
+    <div class="accordion-card open" id="card-dfa">
+      <div class="card-header" data-target="card-dfa">
+        <div class="card-header-left">
+          <span class="card-step-num">2</span>
+          <div>
+            <span class="card-title">Subset Construction (NFA → DFA)</span>
+            <span class="card-subtitle">ε-closure & Power-set construction</span>
+          </div>
+        </div>
+        <div class="card-badges">
+          <span id="dfa-stats-badge" class="stage-badge">0 States</span>
+          <span class="toggle-arrow">▼</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Table 1: Intermediate "Sigma | Appears | Goes to" Table -->
+        <div class="table-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h3 class="table-heading">
+              Intermediate Table: Σ / Appears / Goes To
+              <span class="table-subheading">(FCIS '26 Lab 4 Format)</span>
+            </h3>
+          </div>
+          <div class="table-responsive">
+            <table id="intermediate-table" class="academic-table">
+              <thead>
+                <tr>
+                  <th>Sigma (Σ)</th>
+                  <th>Appears In NFA State</th>
+                  <th>Goes To { ε-closure }</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Table 2: Complete DFA Transition Table -->
+        <div class="table-section">
+          <h3 class="table-heading">
+            DFA Transition Table
+            <span class="table-subheading">(→ = Start State, * = Accept State, Φ = Dead/Trap State)</span>
+          </h3>
+          <div class="table-responsive">
+            <table id="dfa-transition-table" class="academic-table">
+              <thead id="dfa-table-head">
+                <tr>
+                  <th>DFA State</th>
+                  <th>NFA State Subset</th>
+                </tr>
+              </thead>
+              <tbody id="dfa-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="dfa-graph-viewport" class="graph-viewport-container">
+          <div class="graph-empty-placeholder">DFA diagram will render here...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOX 3: Hopcroft Minimization -->
+    <div class="accordion-card open" id="card-hopcroft">
+      <div class="card-header" data-target="card-hopcroft">
+        <div class="card-header-left">
+          <span class="card-step-num">3</span>
+          <div>
+            <span class="card-title">DFA Minimization (Hopcroft / Equivalence Partitioning)</span>
+            <span class="card-subtitle">k-Equivalence Rounds & Group Merging</span>
+          </div>
+        </div>
+        <div class="card-badges">
+          <span id="min-stats-badge" class="stage-badge">0 States</span>
+          <span class="toggle-arrow">▼</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Equivalence Rounds Timeline -->
+        <div class="table-section">
+          <h3 class="table-heading">
+            Equivalence Partitioning Steps
+            <span class="table-subheading">(0-Equivalence, 1-Equivalence, ... with split justifications)</span>
+          </h3>
+          <div id="equivalence-timeline" class="timeline-container"></div>
+        </div>
+
+        <!-- Minimized DFA Transition Table -->
+        <div class="table-section">
+          <h3 class="table-heading">
+            Minimized DFA Transition Table
+            <span class="table-subheading">(FCIS '26 Lecture 4 & Lab 4 Format)</span>
+          </h3>
+          <div class="table-responsive">
+            <table id="min-dfa-transition-table" class="academic-table">
+              <thead id="min-dfa-table-head">
+                <tr>
+                  <th>Minimized DFA</th>
+                  <th>Original DFA States</th>
+                </tr>
+              </thead>
+              <tbody id="min-dfa-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="min-dfa-graph-viewport" class="graph-viewport-container">
+          <div class="graph-empty-placeholder">Minimized DFA diagram will render here...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOX 4: String Simulator & Accepted/Rejected Examples -->
+    <div class="accordion-card open" id="card-simulator">
+      <div class="card-header" data-target="card-simulator">
+        <div class="card-header-left">
+          <span class="card-step-num">4</span>
+          <div>
+            <span class="card-title">String Simulator & Acceptance Verification</span>
+            <span class="card-subtitle">Interactive String Tracer & 3 Accepted / 3 Rejected Examples</span>
+          </div>
+        </div>
+        <div class="card-badges">
+          <span id="sim-verdict-badge" class="stage-badge">Interactive</span>
+          <span class="toggle-arrow">▼</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="simulator-panel">
+          <div class="sim-input-row">
+            <input 
+              type="text" 
+              id="sim-input" 
+              class="sim-input" 
+              placeholder="Type any test string here (e.g. ab, abac, a) to test acceptance..."
+              value="ab"
+            >
+            <div id="sim-badge" class="sim-badge accepted">ACCEPTED</div>
+          </div>
+
+          <div id="sim-trace-box" class="sim-trace-box">
+            <div id="sim-reason-text">Trace will appear here...</div>
+            <div id="sim-trace-chips" class="trace-chips"></div>
+          </div>
+
+          <!-- 3 Accepted & 3 Rejected Examples (Lecture 4 Slide 47 Requirement) -->
+          <div class="examples-grid">
+            <div class="example-card">
+              <div class="example-card-title accepted">
+                <span>✓</span> 3 Example Accepted Strings
+              </div>
+              <div id="accepted-examples-list"></div>
+            </div>
+
+            <div class="example-card">
+              <div class="example-card-title rejected">
+                <span>✗</span> 3 Example Rejected Strings
+              </div>
+              <div id="rejected-examples-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      Compiler Theory & Automata Visualizer • Built for FCIS '26 • Fast, Offline, & Interactive
+    </footer>
+  </div>
+
+  <!-- Application Controller Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
