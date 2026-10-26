@@ -89,3 +89,39 @@ test('parameterizes marker IDs with idPrefix and computes dynamic viewBox for wi
   const vbWidth = parseInt(viewBoxMatch[1], 10);
   assert.ok(vbWidth >= 1000, `Expected viewBox width >= 1000, got ${vbWidth}`);
 });
+
+test('positions trap state on dedicated lower sink row centered horizontally', () => {
+  const states = [
+    { id: 'd0', label: 'd0' },
+    { id: 'd1', label: 'd1' },
+    { id: 'd2', label: 'd2' },
+    { id: 'd3', label: 'd3' },
+    { id: 'Φ', label: 'Φ' }
+  ];
+  const transitions = [
+    { from: 'd0', to: 'd1', symbol: 'a' },
+    { from: 'd1', to: 'd2', symbol: 'b' },
+    { from: 'd1', to: 'd3', symbol: 'c' },
+    { from: 'd0', to: 'Φ', symbol: 'b' },
+    { from: 'd2', to: 'Φ', symbol: 'c' },
+    { from: 'd3', to: 'Φ', symbol: 'b' },
+    { from: 'Φ', to: 'Φ', symbol: 'a, b, c' }
+  ];
+  const positions = GraphRenderer.computeLayout(states, transitions, 'd0', 900, 450);
+  const trapPos = positions.get('Φ');
+  assert.ok(trapPos, 'Trap state Φ should exist in positions');
+  assert.equal(trapPos.isTrap, true);
+
+  const regularPositions = states.filter(s => s.id !== 'Φ').map(s => positions.get(s.id));
+  const regularX = regularPositions.map(p => p.x);
+  const regularY = regularPositions.map(p => p.y);
+
+  const minX = Math.min(...regularX);
+  const maxX = Math.max(...regularX);
+  const maxY = Math.max(...regularY);
+
+  const expectedX = (minX + maxX) / 2;
+  assert.ok(Math.abs(trapPos.x - expectedX) < 5, `Expected trap x to be near ${expectedX}, got ${trapPos.x}`);
+  assert.ok(trapPos.y >= maxY + 100, `Expected trap y >= ${maxY + 100}, got ${trapPos.y}`);
+});
+
