@@ -220,6 +220,7 @@ export class GraphRenderer {
     const centerY = height / 2;
     const idPrefix = options.idPrefix || 'g' + Math.floor(Math.random() * 10000);
     const R = 28; // base node radius
+    const isTrapState = (id) => id === 'Φ' || id === 'trap' || (typeof id === 'string' && (id.toLowerCase().includes('trap') || id.toLowerCase().includes('dead')));
 
     const states = graphModel.states || [];
     const rawTransitions = graphModel.transitions || [];
@@ -296,6 +297,7 @@ export class GraphRenderer {
     // Edge Classification & Obstacle Avoidance Routing
     const existingPairs = new Set(transitions.map(t => `${t.from}->${t.to}`));
     const selfLoops = [];
+    const trapEdges = [];
     const backwardEdges = [];
     const bypassEdges = [];
     const regularEdges = [];
@@ -307,6 +309,8 @@ export class GraphRenderer {
 
       if (t.from === t.to) {
         selfLoops.push(t);
+      } else if (p2.isTrap || isTrapState(t.to)) {
+        trapEdges.push(t);
       } else {
         const isAdjacent = Math.abs(p1.layer - p2.layer) <= 1;
         const hasReverse = existingPairs.has(`${t.to}->${t.from}`);
@@ -324,6 +328,51 @@ export class GraphRenderer {
           regularEdges.push(t);
         }
       }
+    }
+
+    // Calculate angular fan-in ports on trap state(s)
+    const trapTargetPorts = new Map();
+    const trapEdgesByTarget = new Map();
+    for (const t of trapEdges) {
+      if (!trapEdgesByTarget.has(t.to)) trapEdgesByTarget.set(t.to, []);
+      trapEdgesByTarget.get(t.to).push(t);
+    }
+
+    for (const [targetId, edges] of trapEdgesByTarget.entries()) {
+      const pTrap = positions.get(targetId);
+      const rTrap = pTrap ? (pTrap.r || R) : R;
+      const trapX = pTrap ? pTrap.x : width / 2;
+      const trapY = pTrap ? pTrap.y : height;
+
+      // Sort by source state x-coordinate and vertical position
+      edges.sort((a, b) => {
+        const p1a = positions.get(a.from);
+        const p1b = positions.get(b.from);
+        if (!p1a || !p1b) return 0;
+        const calcKey = (p) => {
+          const dx = p.x - trapX;
+          const dy = trapY - p.y;
+          if (dx < -10) return dx - dy * 0.15;
+          if (dx > 10) return dx + dy * 0.15;
+          return dx;
+        };
+        return calcKey(p1a) - calcKey(p1b);
+      });
+
+      const K = edges.length;
+      const minAngle = -150 * Math.PI / 180;
+      const maxAngle = -30 * Math.PI / 180;
+
+      edges.forEach((t, i) => {
+        const p1 = positions.get(t.from);
+        const angle = K === 1
+          ? Math.max(minAngle, Math.min(maxAngle, Math.atan2(p1.y - trapY, p1.x - trapX)))
+          : minAngle + (i / (K - 1)) * (maxAngle - minAngle);
+
+        const ex = trapX + (rTrap + 3) * Math.cos(angle);
+        const ey = trapY + (rTrap + 3) * Math.sin(angle);
+        trapTargetPorts.set(`${t.from}->${t.to}`, { ex, ey, angle });
+      });
     }
 
     // Sort arches by span so they form concentric, non-overlapping bridges
@@ -378,7 +427,13 @@ export class GraphRenderer {
     for (const t of selfLoops) {
       const p = positions.get(t.from);
       const r = p?.r || R;
-      if (p && (p.y - r - 75 < minObsY)) minObsY = p.y - r - 75;
+      if (p) {
+        if (p.isTrap || isTrapState(t.from)) {
+          if (p.y + r + 75 > maxObsY) maxObsY = p.y + r + 75;
+        } else {
+          if (p.y - r - 75 < minObsY) minObsY = p.y - r - 75;
+        }
+      }
     }
 
     // Account for bidirectional return arches in vertical extents
@@ -454,27 +509,47 @@ export class GraphRenderer {
         </g>`;
     };
 
-    // 2. Draw Self-Loops (High Arch Cubic Bezier on Top of State)
+    // 2. Draw Self-Loops (High Arch Cubic Bezier: Top for regular states, Bottom for trap states)
     for (const t of selfLoops) {
       const p1 = positions.get(t.from);
       const r = p1.r || R;
-      const isToTrap = t.to === 'Φ' || t.to === 'trap' || t.to.toLowerCase().includes('trap') || t.to.toLowerCase().includes('dead');
+      const isToTrap = p1.isTrap || isTrapState(t.from);
       const spread = 0.45;
-      const sx = p1.x + r * Math.cos(-Math.PI / 2 - spread);
-      const sy = p1.y + r * Math.sin(-Math.PI / 2 - spread);
-      const ex = p1.x + (r + 3) * Math.cos(-Math.PI / 2 + spread);
-      const ey = p1.y + (r + 3) * Math.sin(-Math.PI / 2 + spread);
 
-      const ctrlX1 = p1.x - 30;
-      const ctrlY1 = p1.y - r - 52;
-      const ctrlX2 = p1.x + 30;
-      const ctrlY2 = p1.y - r - 52;
+      if (isToTrap) {
+        // Arches on bottom of trap state to keep upper perimeter clear for incoming error edges
+        const sx = p1.x + r * Math.cos(Math.PI / 2 + spread);
+        const sy = p1.y + r * Math.sin(Math.PI / 2 + spread);
+        const ex = p1.x + (r + 3) * Math.cos(Math.PI / 2 - spread);
+        const ey = p1.y + (r + 3) * Math.sin(Math.PI / 2 - spread);
 
-      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-      const labelX = p1.x;
-      const labelY = p1.y - r - 60;
+        const ctrlX1 = p1.x - 30;
+        const ctrlY1 = p1.y + r + 52;
+        const ctrlX2 = p1.x + 30;
+        const ctrlY2 = p1.y + r + 52;
 
-      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, isToTrap, true);
+        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+        const labelX = p1.x;
+        const labelY = p1.y + r + 60;
+
+        svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, true, true);
+      } else {
+        const sx = p1.x + r * Math.cos(-Math.PI / 2 - spread);
+        const sy = p1.y + r * Math.sin(-Math.PI / 2 - spread);
+        const ex = p1.x + (r + 3) * Math.cos(-Math.PI / 2 + spread);
+        const ey = p1.y + (r + 3) * Math.sin(-Math.PI / 2 + spread);
+
+        const ctrlX1 = p1.x - 30;
+        const ctrlY1 = p1.y - r - 52;
+        const ctrlX2 = p1.x + 30;
+        const ctrlY2 = p1.y - r - 52;
+
+        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+        const labelX = p1.x;
+        const labelY = p1.y - r - 60;
+
+        svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, false, true);
+      }
     }
 
     // 3. Draw Backward Loops (Arches Over The Top of Intermediate States)
@@ -648,7 +723,27 @@ export class GraphRenderer {
       svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, isToTrap);
     }
 
-    // 6. Draw Nodes (States) - Color-coded by semantic role with double circle for accept
+    // 6. Draw Trap Error Transitions (Dedicated angular fan-in ports on Φ)
+    for (const t of trapEdges) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      const r1 = p1.r || R;
+      const port = trapTargetPorts.get(`${t.from}->${t.to}`);
+      const ex = port ? port.ex : p2.x;
+      const ey = port ? port.ey : p2.y;
+
+      const angleStart = Math.atan2(ey - p1.y, ex - p1.x);
+      const sx = p1.x + r1 * Math.cos(angleStart);
+      const sy = p1.y + r1 * Math.sin(angleStart);
+
+      const pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
+      const labelX = (sx + ex) / 2;
+      const labelY = (sy + ey) / 2;
+
+      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, true);
+    }
+
+    // 7. Draw Nodes (States) - Color-coded by semantic role with double circle for accept
     for (const state of states) {
       const pos = positions.get(state.id);
       if (!pos) continue;

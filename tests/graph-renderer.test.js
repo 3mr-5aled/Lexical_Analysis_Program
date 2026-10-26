@@ -125,3 +125,54 @@ test('positions trap state on dedicated lower sink row centered horizontally', (
   assert.ok(trapPos.y >= maxY + 100, `Expected trap y >= ${maxY + 100}, got ${trapPos.y}`);
 });
 
+test('assigns distinct angular fan-in ports on trap state perimeter for incoming edges', () => {
+  const graphModel = {
+    states: [
+      { id: 'd0', label: 'd0', isStart: true },
+      { id: 'd1', label: 'd1' },
+      { id: 'd2', label: 'd2' },
+      { id: 'd3', label: 'd3' },
+      { id: 'Φ', label: 'Φ' }
+    ],
+    transitions: [
+      { from: 'd0', to: 'd1', symbol: 'a' },
+      { from: 'd1', to: 'd2', symbol: 'b' },
+      { from: 'd1', to: 'd3', symbol: 'c' },
+      { from: 'd0', to: 'Φ', symbol: 'b' },
+      { from: 'd1', to: 'Φ', symbol: 'a' },
+      { from: 'd2', to: 'Φ', symbol: 'c' },
+      { from: 'd3', to: 'Φ', symbol: 'b' },
+      { from: 'Φ', to: 'Φ', symbol: 'a, b, c' }
+    ],
+    startState: 'd0',
+    acceptStates: ['d2']
+  };
+
+  const svg = GraphRenderer.createSvgString(graphModel, { isDark: true, width: 900, height: 450 });
+  const edgeRegex = /<g class="edge">\s*<path d="([^"]+)"[^>]*dead-arrow[^>]*\/>/g;
+  const matches = [...svg.matchAll(edgeRegex)];
+  assert.equal(matches.length, 4, `Expected 4 incoming edges to Φ, found ${matches.length}`);
+
+  const endpoints = matches.map(m => {
+    const d = m[1];
+    const parts = d.trim().split(/\s+/);
+    const ey = parseFloat(parts[parts.length - 1]);
+    const ex = parseFloat(parts[parts.length - 2]);
+    return { ex, ey };
+  });
+
+  for (let i = 0; i < endpoints.length; i++) {
+    for (let j = i + 1; j < endpoints.length; j++) {
+      const dist = Math.hypot(endpoints[i].ex - endpoints[j].ex, endpoints[i].ey - endpoints[j].ey);
+      assert.ok(dist >= 8, `Endpoints ${i} and ${j} too close (${dist}px): (${endpoints[i].ex}, ${endpoints[i].ey}) vs (${endpoints[j].ex}, ${endpoints[j].ey})`);
+    }
+  }
+
+  const positions = GraphRenderer.computeLayout(graphModel.states, graphModel.transitions, 'd0', 900, 450);
+  const trapY = positions.get('Φ').y;
+  for (const ep of endpoints) {
+    assert.ok(ep.ey < trapY, `Expected endpoint ey (${ep.ey}) to be on upper perimeter (above trap y ${trapY})`);
+  }
+});
+
+
