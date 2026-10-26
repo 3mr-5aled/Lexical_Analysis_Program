@@ -1137,6 +1137,89 @@ class GraphRenderer {
   }
 
   /**
+   * Resolves overlaps between edge label badges and other labels or nodes.
+   * Deterministically shifts badges along the axis of minimum displacement.
+   * @param {Array<{id: string, x: number, y: number, w: number, h: number}>} labels
+   * @param {Array<{x: number, y: number, r?: number}>} nodes
+   * @returns {Array<{id: string, x: number, y: number, w: number, h: number}>}
+   */
+  static resolveLabelCollisions(labels, nodes = []) {
+    const PADDING = 6;
+    const maxIterations = 60;
+    let hasCollision = true;
+    let iter = 0;
+
+    while (hasCollision && iter < maxIterations) {
+      hasCollision = false;
+      iter++;
+
+      // 1. Label vs Label
+      for (let i = 0; i < labels.length; i++) {
+        for (let j = i + 1; j < labels.length; j++) {
+          const l1 = labels[i];
+          const l2 = labels[j];
+
+          const minX1 = l1.x - l1.w / 2 - PADDING / 2;
+          const maxX1 = l1.x + l1.w / 2 + PADDING / 2;
+          const minY1 = l1.y - l1.h / 2 - PADDING / 2;
+          const maxY1 = l1.y + l1.h / 2 + PADDING / 2;
+
+          const minX2 = l2.x - l2.w / 2 - PADDING / 2;
+          const maxX2 = l2.x + l2.w / 2 + PADDING / 2;
+          const minY2 = l2.y - l2.h / 2 - PADDING / 2;
+          const maxY2 = l2.y + l2.h / 2 + PADDING / 2;
+
+          const overlapX = Math.min(maxX1, maxX2) - Math.max(minX1, minX2);
+          const overlapY = Math.min(maxY1, maxY2) - Math.max(minY1, minY2);
+
+          if (overlapX > 0 && overlapY > 0) {
+            hasCollision = true;
+            if (overlapY <= overlapX * 1.5) {
+              const shift = (overlapY / 2) + 1.5;
+              if (l1.y <= l2.y) {
+                l1.y -= shift;
+                l2.y += shift;
+              } else {
+                l1.y += shift;
+                l2.y -= shift;
+              }
+            } else {
+              const shift = (overlapX / 2) + 1.5;
+              if (l1.x <= l2.x) {
+                l1.x -= shift;
+                l2.x += shift;
+              } else {
+                l1.x += shift;
+                l2.x -= shift;
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Label vs Node
+      for (const l of labels) {
+        for (const node of nodes) {
+          const nr = (node.r || 28) + 8;
+          const dx = l.x - node.x;
+          const dy = l.y - node.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < nr + Math.min(l.w, l.h) / 2) {
+            hasCollision = true;
+            const uX = dist > 0 ? dx / dist : 0;
+            const uY = dist > 0 ? dy / dist : -1;
+            const push = (nr + Math.min(l.w, l.h) / 2 - dist) + 2;
+            l.x += uX * push;
+            l.y += uY * push;
+          }
+        }
+      }
+    }
+
+    return labels;
+  }
+
+  /**
    * Generates pure SVG string representing the graph.
    * Visual aesthetics matching interactive_dfa_studio_c_lexical_analyzer.html.
    * Features:
@@ -1340,7 +1423,364 @@ class GraphRenderer {
       return (p2a.x - p1a.x) - (p2b.x - p1b.x);
     });
 
-    // Compute bounding box extents to ensure SVG height accommodates high/low arches
+    // Check states with self loops
+    const statesWithTopSelfLoop = new Set(selfLoops.filter(sl => {
+      const p = positions.get(sl.from);
+      return p && !p.isTrap && !isTrapState(sl.from);
+    }).map(sl => sl.from));
+
+    const statesWithBottomSelfLoop = new Set(selfLoops.filter(sl => {
+      const p = positions.get(sl.from);
+      return p && (p.isTrap || isTrapState(sl.from));
+    }).map(sl => sl.from));
+
+    // Assign arch apex Y coordinates
+    backwardEdges.forEach((t, idx) => {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      let localMinY = Math.min(p1.y, p2.y);
+      for (const [id, pos] of positions.entries()) {
+        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
+          const effectiveY = statesWithTopSelfLoop.has(id) ? (pos.y - 70) : pos.y;
+          if (effectiveY < localMinY) localMinY = effectiveY;
+        }
+      }
+      t._archY = (localMinY - R) - 45 - (idx * 26) - (Math.abs(p1.layer - p2.layer) * 4);
+    });
+
+    bypassEdges.forEach((t, idx) => {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      let localMaxY = Math.max(p1.y, p2.y);
+      for (const [id, pos] of positions.entries()) {
+        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
+          const effectiveY = statesWithBottomSelfLoop.has(id) ? (pos.y + 75) : pos.y;
+          if (effectiveY > localMaxY) localMaxY = effectiveY;
+        }
+      }
+      t._archY = (localMaxY + R) + 45 + (idx * 26) + (Math.abs(p2.layer - p1.layer) * 4);
+    });
+
+    // Prepare list of edge rendering items
+    const edgeRenderItems = [];
+
+    // 1. Self Loops
+    for (const t of selfLoops) {
+      const p1 = positions.get(t.from);
+      const r = p1.r || R;
+      const isToTrap = p1.isTrap || isTrapState(t.from);
+      const spread = 0.45;
+
+      if (isToTrap) {
+        // Arches on bottom of trap state to keep upper perimeter clear for incoming error edges
+        const sx = p1.x + r * Math.cos(Math.PI / 2 + spread);
+        const sy = p1.y + r * Math.sin(Math.PI / 2 + spread);
+        const ex = p1.x + (r + 3) * Math.cos(Math.PI / 2 - spread);
+        const ey = p1.y + (r + 3) * Math.sin(Math.PI / 2 - spread);
+
+        const ctrlX1 = p1.x - 30;
+        const ctrlY1 = p1.y + r + 52;
+        const ctrlX2 = p1.x + 30;
+        const ctrlY2 = p1.y + r + 52;
+
+        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+        const labelX = p1.x;
+        const labelY = p1.y + r + 60;
+        edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: true, isSelfLoop: true });
+      } else {
+        const sx = p1.x + r * Math.cos(-Math.PI / 2 - spread);
+        const sy = p1.y + r * Math.sin(-Math.PI / 2 - spread);
+        const ex = p1.x + (r + 3) * Math.cos(-Math.PI / 2 + spread);
+        const ey = p1.y + (r + 3) * Math.sin(-Math.PI / 2 + spread);
+
+        const ctrlX1 = p1.x - 30;
+        const ctrlY1 = p1.y - r - 52;
+        const ctrlX2 = p1.x + 30;
+        const ctrlY2 = p1.y - r - 52;
+
+        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+        const labelX = p1.x;
+        const labelY = p1.y - r - 60;
+        edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: false, isSelfLoop: true });
+      }
+    }
+
+    // 2. Backward Loops
+    for (const t of backwardEdges) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      const r1 = p1.r || R;
+      const r2 = p2.r || R;
+      const isToTrap = isTrapState(t.to);
+      const spanX = Math.abs(p1.x - p2.x);
+      const archY = t._archY;
+
+      const sx = p1.x + r1 * Math.cos(-Math.PI * 0.45);
+      const sy = p1.y + r1 * Math.sin(-Math.PI * 0.45);
+      const ex = p2.x + (r2 + 3) * Math.cos(-Math.PI * 0.55);
+      const ey = p2.y + (r2 + 3) * Math.sin(-Math.PI * 0.55);
+
+      const ctrlX1 = sx - spanX * 0.14;
+      const ctrlY1 = archY;
+      const ctrlX2 = ex + spanX * 0.14;
+      const ctrlY2 = archY;
+
+      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+      const labelX = (sx + ex) / 2;
+      const labelY = archY - 14;
+      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+    }
+
+    // 3. Bypass Edges
+    for (const t of bypassEdges) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      const r1 = p1.r || R;
+      const r2 = p2.r || R;
+      const isToTrap = isTrapState(t.to);
+      const spanX = Math.abs(p2.x - p1.x);
+      const archY = t._archY;
+
+      const sx = p1.x + r1 * Math.cos(Math.PI * 0.45);
+      const sy = p1.y + r1 * Math.sin(Math.PI * 0.45);
+      const ex = p2.x - (r2 + 3) * Math.cos(Math.PI * 0.45);
+      const ey = p2.y + (r2 + 3) * Math.sin(Math.PI * 0.45);
+
+      const ctrlX1 = sx + spanX * 0.14;
+      const ctrlY1 = archY;
+      const ctrlX2 = ex - spanX * 0.14;
+      const ctrlY2 = archY;
+
+      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+      const labelX = (sx + ex) / 2;
+      const labelY = archY + 14;
+      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+    }
+
+    // 4. Regular Edges
+    for (const t of regularEdges) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      const r1 = p1.r || R;
+      const r2 = p2.r || R;
+      const isToTrap = isTrapState(t.to);
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist === 0) continue;
+
+      const hasReverse = existingPairs.has(`${t.to}->${t.from}`);
+      const isSameLayer = p1.layer === p2.layer;
+
+      let pathD = '';
+      let labelX = 0;
+      let labelY = 0;
+
+      if (hasReverse) {
+        if (p1.x < p2.x) {
+          const ux = dx / dist;
+          const uy = dy / dist;
+          const sx = p1.x + r1 * ux;
+          const sy = p1.y + r1 * uy;
+          const ex = p2.x - (r2 + 3) * ux;
+          const ey = p2.y - (r2 + 3) * uy;
+
+          pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
+          labelX = (sx + ex) / 2;
+          labelY = (sy + ey) / 2;
+        } else if (p1.x > p2.x) {
+          const spanX = Math.abs(p1.x - p2.x);
+          const isUpper = (p1.y < centerY) || (p1.y <= p2.y && p2.y <= centerY);
+
+          if (isUpper) {
+            const archY = Math.min(p1.y, p2.y) - 52;
+            const sx = p1.x + r1 * Math.cos(-Math.PI * 0.45);
+            const sy = p1.y + r1 * Math.sin(-Math.PI * 0.45);
+            const ex = p2.x + (r2 + 3) * Math.cos(-Math.PI * 0.35);
+            const ey = p2.y + (r2 + 3) * Math.sin(-Math.PI * 0.35);
+
+            const ctrlX1 = sx - spanX * 0.15;
+            const ctrlY1 = archY;
+            const ctrlX2 = ex + spanX * 0.15;
+            const ctrlY2 = archY;
+
+            pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+            labelX = (sx + ex) / 2;
+            labelY = archY - 14;
+          } else {
+            const archY = Math.max(p1.y, p2.y) + 52;
+            const sx = p1.x + r1 * Math.cos(Math.PI * 0.45);
+            const sy = p1.y + r1 * Math.sin(Math.PI * 0.45);
+            const ex = p2.x + (r2 + 3) * Math.cos(Math.PI * 0.35);
+            const ey = p2.y + (r2 + 3) * Math.sin(Math.PI * 0.35);
+
+            const ctrlX1 = sx - spanX * 0.15;
+            const ctrlY1 = archY;
+            const ctrlX2 = ex + spanX * 0.15;
+            const ctrlY2 = archY;
+
+            pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+            labelX = (sx + ex) / 2;
+            labelY = archY + 14;
+          }
+        } else {
+          // Vertical bidirectional pair (same x)
+          const curveOffset = p1.y < p2.y ? 38 : -38;
+          const midX = p1.x + curveOffset;
+          const midY = (p1.y + p2.y) / 2;
+          const angleStart = Math.atan2(midY - p1.y, midX - p1.x);
+          const sx = p1.x + r1 * Math.cos(angleStart);
+          const sy = p1.y + r1 * Math.sin(angleStart);
+          const angleEnd = Math.atan2(p2.y - midY, p2.x - midX);
+          const ex = p2.x - (r2 + 3) * Math.cos(angleEnd);
+          const ey = p2.y - (r2 + 3) * Math.sin(angleEnd);
+
+          pathD = `M ${sx} ${sy} Q ${midX} ${midY} ${ex} ${ey}`;
+          labelX = midX;
+          labelY = midY;
+        }
+      } else if (isSameLayer) {
+        const curveOffset = 38;
+        const midX = (p1.x + p2.x) / 2 + curveOffset;
+        const midY = (p1.y + p2.y) / 2;
+        const angleStart = Math.atan2(midY - p1.y, midX - p1.x);
+        const sx = p1.x + r1 * Math.cos(angleStart);
+        const sy = p1.y + r1 * Math.sin(angleStart);
+        const angleEnd = Math.atan2(p2.y - midY, p2.x - midX);
+        const ex = p2.x - (r2 + 3) * Math.cos(angleEnd);
+        const ey = p2.y - (r2 + 3) * Math.sin(angleEnd);
+
+        pathD = `M ${sx} ${sy} Q ${midX} ${midY} ${ex} ${ey}`;
+        labelX = midX;
+        labelY = midY;
+      } else {
+        const ux = dx / dist;
+        const uy = dy / dist;
+        const sx = p1.x + r1 * ux;
+        const sy = p1.y + r1 * uy;
+        const ex = p2.x - (r2 + 3) * ux;
+        const ey = p2.y - (r2 + 3) * uy;
+
+        pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
+        labelX = (sx + ex) / 2;
+        labelY = (sy + ey) / 2;
+      }
+
+      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+    }
+
+    // 5. Trap Edges
+    for (const t of trapEdges) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      const r1 = p1.r || R;
+      const port = trapTargetPorts.get(`${t.from}->${t.to}`);
+      const ex = port ? port.ex : p2.x;
+      const ey = port ? port.ey : p2.y;
+
+      // Check if p1 has states beneath it in the same column
+      const belowStates = [];
+      for (const [otherId, pos] of positions.entries()) {
+        if (otherId !== t.from && !pos.isTrap && !isTrapState(otherId)) {
+          if (Math.abs(pos.x - p1.x) <= 35 && pos.y > p1.y + 20) {
+            belowStates.push(pos);
+          }
+        }
+      }
+
+      // Check if p1 itself has a return loop arching underneath it
+      const hasLowerReturnLoop = regularEdges.some(re => {
+        const rp1 = positions.get(re.from);
+        const rp2 = positions.get(re.to);
+        return (re.from === t.from && rp1 && rp2 && rp1.x > rp2.x && rp1.y >= centerY);
+      });
+
+      let pathD = '';
+      let labelX = 0;
+      let labelY = 0;
+
+      if (belowStates.length > 0) {
+        // Upper stacked state: route around the outside of the column via clearance lane
+        const maxBelowY = Math.max(...belowStates.map(s => s.y));
+        const maxColX = Math.max(p1.x, ...belowStates.map(s => s.x));
+        const minColX = Math.min(p1.x, ...belowStates.map(s => s.x));
+
+        if (p1.x >= p2.x) {
+          // Route around the RIGHT side
+          const sx = p1.x + r1;
+          const sy = p1.y;
+          const cx1 = maxColX + 70;
+          const cy1 = p1.y + 20;
+          const cx2 = maxColX + 70;
+          const cy2 = maxBelowY + 45;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          labelX = cx1;
+          labelY = (p1.y + maxBelowY) / 2;
+        } else {
+          // Route around the LEFT side
+          const sx = p1.x - r1;
+          const sy = p1.y;
+          const cx1 = minColX - 70;
+          const cy1 = p1.y + 20;
+          const cx2 = minColX - 70;
+          const cy2 = maxBelowY + 45;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          labelX = cx1;
+          labelY = (p1.y + maxBelowY) / 2;
+        }
+      } else if (hasLowerReturnLoop && Math.abs(p1.x - p2.x) > 40) {
+        // p1 has a return loop arching under it: curve trap transition lower into sink zone
+        const angleStart = Math.PI * 0.45;
+        const sx = p1.x + r1 * Math.cos(angleStart);
+        const sy = p1.y + r1 * Math.sin(angleStart);
+
+        const ctrlX = (sx + ex) / 2;
+        const ctrlY = Math.max(p1.y + 80, (sy + ey) / 2 + 25);
+
+        pathD = `M ${sx} ${sy} Q ${ctrlX} ${ctrlY} ${ex} ${ey}`;
+        labelX = ctrlX;
+        labelY = ctrlY - 14;
+      } else {
+        // Direct straight line to dedicated angular port
+        const angleStart = Math.atan2(ey - p1.y, ex - p1.x);
+        const sx = p1.x + r1 * Math.cos(angleStart);
+        const sy = p1.y + r1 * Math.sin(angleStart);
+
+        pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
+        labelX = (sx + ex) / 2;
+        labelY = (sy + ey) / 2;
+      }
+
+      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: true, isSelfLoop: false });
+    }
+
+    // Prepare labels for collision relaxation pass
+    const labelData = edgeRenderItems.map((item, idx) => {
+      const sym = item.t.symbol;
+      const pillW = Math.max(34, sym.length * 8.6 + 20);
+      const pillH = 25;
+      return {
+        id: `label-${idx}`,
+        symbol: sym,
+        x: item.labelX,
+        y: item.labelY,
+        w: pillW,
+        h: pillH,
+        item
+      };
+    });
+
+    GraphRenderer.resolveLabelCollisions(labelData, Array.from(positions.values()));
+
+    labelData.forEach(ld => {
+      ld.item.labelX = ld.x;
+      ld.item.labelY = ld.y;
+    });
+
+    // Compute bounding box extents to ensure SVG height accommodates all elements and relaxed labels
     let minObsY = height;
     let maxObsY = 0;
     for (const pos of positions.values()) {
@@ -1349,32 +1789,18 @@ class GraphRenderer {
       if (pos.y + r > maxObsY) maxObsY = pos.y + r;
     }
 
-    // Assign arch apex Y coordinates
-    backwardEdges.forEach((t, idx) => {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      let localMinY = Math.min(p1.y, p2.y);
-      for (const pos of positions.values()) {
-        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
-          if (pos.y < localMinY) localMinY = pos.y;
-        }
-      }
-      t._archY = (localMinY - R) - 45 - (idx * 26) - (Math.abs(p1.layer - p2.layer) * 4);
-      if (t._archY - 35 < minObsY) minObsY = t._archY - 35;
-    });
+    for (const item of edgeRenderItems) {
+      const pillH = 25;
+      if (item.labelY - pillH / 2 < minObsY) minObsY = item.labelY - pillH / 2;
+      if (item.labelY + pillH / 2 > maxObsY) maxObsY = item.labelY + pillH / 2;
+    }
 
-    bypassEdges.forEach((t, idx) => {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      let localMaxY = Math.max(p1.y, p2.y);
-      for (const pos of positions.values()) {
-        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
-          if (pos.y > localMaxY) localMaxY = pos.y;
-        }
-      }
-      t._archY = (localMaxY + R) + 45 + (idx * 26) + (Math.abs(p2.layer - p1.layer) * 4);
+    for (const t of backwardEdges) {
+      if (t._archY - 35 < minObsY) minObsY = t._archY - 35;
+    }
+    for (const t of bypassEdges) {
       if (t._archY + 35 > maxObsY) maxObsY = t._archY + 35;
-    });
+    }
 
     for (const t of selfLoops) {
       const p = positions.get(t.from);
@@ -1461,286 +1887,9 @@ class GraphRenderer {
         </g>`;
     };
 
-    // 2. Draw Self-Loops (High Arch Cubic Bezier: Top for regular states, Bottom for trap states)
-    for (const t of selfLoops) {
-      const p1 = positions.get(t.from);
-      const r = p1.r || R;
-      const isToTrap = p1.isTrap || isTrapState(t.from);
-      const spread = 0.45;
-
-      if (isToTrap) {
-        // Arches on bottom of trap state to keep upper perimeter clear for incoming error edges
-        const sx = p1.x + r * Math.cos(Math.PI / 2 + spread);
-        const sy = p1.y + r * Math.sin(Math.PI / 2 + spread);
-        const ex = p1.x + (r + 3) * Math.cos(Math.PI / 2 - spread);
-        const ey = p1.y + (r + 3) * Math.sin(Math.PI / 2 - spread);
-
-        const ctrlX1 = p1.x - 30;
-        const ctrlY1 = p1.y + r + 52;
-        const ctrlX2 = p1.x + 30;
-        const ctrlY2 = p1.y + r + 52;
-
-        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-        const labelX = p1.x;
-        const labelY = p1.y + r + 60;
-
-        svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, true, true);
-      } else {
-        const sx = p1.x + r * Math.cos(-Math.PI / 2 - spread);
-        const sy = p1.y + r * Math.sin(-Math.PI / 2 - spread);
-        const ex = p1.x + (r + 3) * Math.cos(-Math.PI / 2 + spread);
-        const ey = p1.y + (r + 3) * Math.sin(-Math.PI / 2 + spread);
-
-        const ctrlX1 = p1.x - 30;
-        const ctrlY1 = p1.y - r - 52;
-        const ctrlX2 = p1.x + 30;
-        const ctrlY2 = p1.y - r - 52;
-
-        const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-        const labelX = p1.x;
-        const labelY = p1.y - r - 60;
-
-        svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, false, true);
-      }
-    }
-
-    // 3. Draw Backward Loops (Arches Over The Top of Intermediate States)
-    for (const t of backwardEdges) {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      const r1 = p1.r || R;
-      const r2 = p2.r || R;
-      const isToTrap = t.to === 'Φ' || t.to === 'trap' || t.to.toLowerCase().includes('trap') || t.to.toLowerCase().includes('dead');
-
-      const spanX = Math.abs(p1.x - p2.x);
-      const archY = t._archY;
-
-      // Leaves top of p1
-      const sx = p1.x + r1 * Math.cos(-Math.PI * 0.45);
-      const sy = p1.y + r1 * Math.sin(-Math.PI * 0.45);
-
-      // Enters top of p2
-      const ex = p2.x + (r2 + 3) * Math.cos(-Math.PI * 0.55);
-      const ey = p2.y + (r2 + 3) * Math.sin(-Math.PI * 0.55);
-
-      const ctrlX1 = sx - spanX * 0.14;
-      const ctrlY1 = archY;
-      const ctrlX2 = ex + spanX * 0.14;
-      const ctrlY2 = archY;
-
-      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-      const labelX = (sx + ex) / 2;
-      const labelY = archY - 14;
-
-      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, isToTrap);
-    }
-
-    // 4. Draw Forward Bypass Edges (Arches Under The Bottom of Intermediate States)
-    for (const t of bypassEdges) {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      const r1 = p1.r || R;
-      const r2 = p2.r || R;
-      const isToTrap = t.to === 'Φ' || t.to === 'trap' || t.to.toLowerCase().includes('trap') || t.to.toLowerCase().includes('dead');
-
-      const spanX = Math.abs(p2.x - p1.x);
-      const archY = t._archY;
-
-      // Leaves bottom of p1
-      const sx = p1.x + r1 * Math.cos(Math.PI * 0.45);
-      const sy = p1.y + r1 * Math.sin(Math.PI * 0.45);
-
-      // Enters bottom of p2
-      const ex = p2.x - (r2 + 3) * Math.cos(Math.PI * 0.45);
-      const ey = p2.y + (r2 + 3) * Math.sin(Math.PI * 0.45);
-
-      const ctrlX1 = sx + spanX * 0.14;
-      const ctrlY1 = archY;
-      const ctrlX2 = ex - spanX * 0.14;
-      const ctrlY2 = archY;
-
-      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-      const labelX = (sx + ex) / 2;
-      const labelY = archY + 14;
-
-      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, isToTrap);
-    }
-
-    // 5. Draw Regular & Adjacent Edges (Straight or Distinct Opposing Bidirectional Curves)
-    for (const t of regularEdges) {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      const r1 = p1.r || R;
-      const r2 = p2.r || R;
-      const isToTrap = t.to === 'Φ' || t.to === 'trap' || t.to.toLowerCase().includes('trap') || t.to.toLowerCase().includes('dead');
-
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist === 0) continue;
-
-      const hasReverse = existingPairs.has(`${t.to}->${t.from}`);
-      const isSameLayer = p1.layer === p2.layer;
-
-      let pathD = '';
-      let labelX = 0;
-      let labelY = 0;
-
-      if (hasReverse) {
-        if (p1.x <= p2.x) {
-          // Forward direction of a bidirectional pair (e.g. q1 -> q2 or q1 -> q4):
-          // Rendered as a clean direct straight line!
-          const ux = dx / dist;
-          const uy = dy / dist;
-          const sx = p1.x + r1 * ux;
-          const sy = p1.y + r1 * uy;
-          const ex = p2.x - (r2 + 3) * ux;
-          const ey = p2.y - (r2 + 3) * uy;
-
-          pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
-          labelX = (sx + ex) / 2;
-          labelY = (sy + ey) / 2;
-        } else {
-          // Return direction of a bidirectional pair (p1.x > p2.x, e.g. q2 -> q1 or q4 -> q1):
-          // Arches gracefully around the OUTSIDE (matching interactive_dfa_studio):
-          // Upper branch arches OVER THE TOP; lower branch arches UNDER THE BOTTOM.
-          const spanX = Math.abs(p1.x - p2.x);
-          const isUpper = (p1.y < centerY) || (p1.y <= p2.y && p2.y <= centerY);
-
-          if (isUpper) {
-            // Upper branch: arch OVER THE TOP
-            const archY = Math.min(p1.y, p2.y) - 52;
-            const sx = p1.x + r1 * Math.cos(-Math.PI * 0.45);
-            const sy = p1.y + r1 * Math.sin(-Math.PI * 0.45);
-            const ex = p2.x + (r2 + 3) * Math.cos(-Math.PI * 0.35);
-            const ey = p2.y + (r2 + 3) * Math.sin(-Math.PI * 0.35);
-
-            const ctrlX1 = sx - spanX * 0.15;
-            const ctrlY1 = archY;
-            const ctrlX2 = ex + spanX * 0.15;
-            const ctrlY2 = archY;
-
-            pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-            labelX = (sx + ex) / 2;
-            labelY = archY - 14;
-          } else {
-            // Lower branch: arch UNDER THE BOTTOM
-            const archY = Math.max(p1.y, p2.y) + 52;
-            const sx = p1.x + r1 * Math.cos(Math.PI * 0.45);
-            const sy = p1.y + r1 * Math.sin(Math.PI * 0.45);
-            const ex = p2.x + (r2 + 3) * Math.cos(Math.PI * 0.35);
-            const ey = p2.y + (r2 + 3) * Math.sin(Math.PI * 0.35);
-
-            const ctrlX1 = sx - spanX * 0.15;
-            const ctrlY1 = archY;
-            const ctrlX2 = ex + spanX * 0.15;
-            const ctrlY2 = archY;
-
-            pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
-            labelX = (sx + ex) / 2;
-            labelY = archY + 14;
-          }
-        }
-      } else if (isSameLayer) {
-        // Vertical edges within the same column: curve right
-        const curveOffset = 38;
-        const midX = (p1.x + p2.x) / 2 + curveOffset;
-        const midY = (p1.y + p2.y) / 2;
-
-        const angleStart = Math.atan2(midY - p1.y, midX - p1.x);
-        const sx = p1.x + r1 * Math.cos(angleStart);
-        const sy = p1.y + r1 * Math.sin(angleStart);
-
-        const angleEnd = Math.atan2(p2.y - midY, p2.x - midX);
-        const ex = p2.x - (r2 + 3) * Math.cos(angleEnd);
-        const ey = p2.y - (r2 + 3) * Math.sin(angleEnd);
-
-        pathD = `M ${sx} ${sy} Q ${midX} ${midY} ${ex} ${ey}`;
-        labelX = midX;
-        labelY = midY;
-      } else {
-        // Straight line between circumference boundaries
-        const ux = dx / dist;
-        const uy = dy / dist;
-        const sx = p1.x + r1 * ux;
-        const sy = p1.y + r1 * uy;
-        const ex = p2.x - (r2 + 3) * ux;
-        const ey = p2.y - (r2 + 3) * uy;
-
-        pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
-        labelX = (sx + ex) / 2;
-        labelY = (sy + ey) / 2;
-      }
-
-      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, isToTrap);
-    }
-
-    // 6. Draw Trap Error Transitions (Dedicated angular fan-in ports on Φ)
-    for (const t of trapEdges) {
-      const p1 = positions.get(t.from);
-      const p2 = positions.get(t.to);
-      const r1 = p1.r || R;
-      const port = trapTargetPorts.get(`${t.from}->${t.to}`);
-      const ex = port ? port.ex : p2.x;
-      const ey = port ? port.ey : p2.y;
-
-      // Check if p1 has states beneath it in the same column
-      const belowStates = [];
-      for (const [otherId, pos] of positions.entries()) {
-        if (otherId !== t.from && !pos.isTrap && !isTrapState(otherId)) {
-          if (Math.abs(pos.x - p1.x) <= 35 && pos.y > p1.y + 20) {
-            belowStates.push(pos);
-          }
-        }
-      }
-
-      let pathD = '';
-      let labelX = 0;
-      let labelY = 0;
-
-      if (belowStates.length > 0) {
-        // Upper stacked state: route around the outside of the column via clearance lane
-        const maxBelowY = Math.max(...belowStates.map(s => s.y));
-        const maxColX = Math.max(p1.x, ...belowStates.map(s => s.x));
-        const minColX = Math.min(p1.x, ...belowStates.map(s => s.x));
-
-        if (p1.x >= p2.x) {
-          // Route around the RIGHT side
-          const sx = p1.x + r1;
-          const sy = p1.y;
-          const cx1 = maxColX + 70;
-          const cy1 = p1.y + 20;
-          const cx2 = maxColX + 70;
-          const cy2 = maxBelowY + 40;
-
-          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
-          labelX = cx1;
-          labelY = (p1.y + maxBelowY) / 2;
-        } else {
-          // Route around the LEFT side
-          const sx = p1.x - r1;
-          const sy = p1.y;
-          const cx1 = minColX - 70;
-          const cy1 = p1.y + 20;
-          const cx2 = minColX - 70;
-          const cy2 = maxBelowY + 40;
-
-          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
-          labelX = cx1;
-          labelY = (p1.y + maxBelowY) / 2;
-        }
-      } else {
-        // Direct straight line to dedicated angular port
-        const angleStart = Math.atan2(ey - p1.y, ex - p1.x);
-        const sx = p1.x + r1 * Math.cos(angleStart);
-        const sy = p1.y + r1 * Math.sin(angleStart);
-
-        pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
-        labelX = (sx + ex) / 2;
-        labelY = (sy + ey) / 2;
-      }
-
-      svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, true);
+    // Render all edge markups
+    for (const item of edgeRenderItems) {
+      svg += renderEdgeMarkup(item.pathD, item.labelX, item.labelY, item.t.symbol, item.isTrap, item.isSelfLoop);
     }
 
     // 7. Draw Nodes (States) - Color-coded by semantic role with double circle for accept

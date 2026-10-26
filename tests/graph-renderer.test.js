@@ -230,5 +230,73 @@ test('routes upper stacked error transitions via outer clearance lanes avoiding 
   assert.ok(cx2 >= posD3.x + 45, `Expected cx2 (${cx2}) >= d3.x + 45 (${posD3.x + 45})`);
 });
 
+test('eliminates all label-label collisions and maintains clean tier clearance for trap and return transitions', () => {
+  // Test case corresponding to (ab|ac)* DFA shown in Screenshot 2026-10-26 171113.png
+  const graphModel = {
+    states: [
+      { id: 'd0', label: 'd0', isStart: true, isAccept: true },
+      { id: 'd1', label: 'd1', isStart: false, isAccept: false },
+      { id: 'd2', label: 'd2', isStart: false, isAccept: true },
+      { id: 'd3', label: 'd3', isStart: false, isAccept: true },
+      { id: 'Φ', label: 'Φ', isStart: false, isAccept: false }
+    ],
+    transitions: [
+      { from: 'd0', to: 'd1', symbol: 'a' },
+      { from: 'd0', to: 'Φ', symbol: 'b' },
+      { from: 'd0', to: 'Φ', symbol: 'c' },
+      { from: 'd1', to: 'd2', symbol: 'b' },
+      { from: 'd1', to: 'd3', symbol: 'c' },
+      { from: 'd1', to: 'Φ', symbol: 'a' },
+      { from: 'd2', to: 'd1', symbol: 'a' },
+      { from: 'd2', to: 'Φ', symbol: 'b' },
+      { from: 'd2', to: 'Φ', symbol: 'c' },
+      { from: 'd3', to: 'd1', symbol: 'a' },
+      { from: 'd3', to: 'Φ', symbol: 'b' },
+      { from: 'd3', to: 'Φ', symbol: 'c' },
+      { from: 'Φ', to: 'Φ', symbol: 'a' },
+      { from: 'Φ', to: 'Φ', symbol: 'b' },
+      { from: 'Φ', to: 'Φ', symbol: 'c' }
+    ],
+    startState: 'd0',
+    acceptStates: ['d0', 'd2', 'd3']
+  };
+
+  const svg = GraphRenderer.createSvgString(graphModel, { isDark: true, width: 900, height: 450 });
+
+  // Extract all edge label pills
+  const edgeRegex = /<g class="edge[^"]*">([\s\S]*?)<\/g>/g;
+  let match;
+  const rects = [];
+  while ((match = edgeRegex.exec(svg)) !== null) {
+    const content = match[1];
+    const text = content.match(/<text[^>]*>([^<]+)<\/text>/)?.[1];
+    const rectMatch = content.match(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/);
+    if (rectMatch) {
+      rects.push({
+        text,
+        x: parseFloat(rectMatch[1]),
+        y: parseFloat(rectMatch[2]),
+        w: parseFloat(rectMatch[3]),
+        h: parseFloat(rectMatch[4])
+      });
+    }
+  }
+
+  // Assert ZERO label-label overlap
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) {
+      const r1 = rects[i];
+      const r2 = rects[j];
+      const overlapX = (r1.x < r2.x + r2.w) && (r1.x + r1.w > r2.x);
+      const overlapY = (r1.y < r2.y + r2.h) && (r1.y + r1.h > r2.y);
+      assert.ok(
+        !(overlapX && overlapY),
+        `Label '${r1.text}' at (${r1.x}, ${r1.y}, ${r1.w}x${r1.h}) overlaps with '${r2.text}' at (${r2.x}, ${r2.y}, ${r2.w}x${r2.h})`
+      );
+    }
+  }
+});
+
+
 
 
