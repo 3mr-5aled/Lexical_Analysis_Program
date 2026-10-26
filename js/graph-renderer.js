@@ -260,6 +260,23 @@ export class GraphRenderer {
     for (const pos of positions.values()) {
       if (pos.x > maxX) maxX = pos.x;
     }
+
+    // Account for clearance lanes extending outward around stacked states
+    for (const t of transitions) {
+      const p1 = positions.get(t.from);
+      const p2 = positions.get(t.to);
+      if (p1 && p2 && (p2.isTrap || isTrapState(t.to))) {
+        for (const [otherId, pos] of positions.entries()) {
+          if (otherId !== t.from && !pos.isTrap && !isTrapState(otherId)) {
+            if (Math.abs(pos.x - p1.x) <= 35 && pos.y > p1.y + 20) {
+              if (p1.x >= p2.x && pos.x + 90 > maxX) {
+                maxX = pos.x + 90;
+              }
+            }
+          }
+        }
+      }
+    }
     const viewBoxWidth = Math.max(width, maxX + 110);
 
     // Theme palette

@@ -135,48 +135,66 @@ export class Thompson {
 
     const finalFragment = stack.pop();
 
-    // Canonical renumbering using BFS starting from startState
-    const stateMap = new Map();
-    let currentNewId = 0;
-
-    const getNewId = (oldId) => {
-      if (!stateMap.has(oldId)) {
-        stateMap.set(oldId, currentNewId++);
-      }
-      return stateMap.get(oldId);
-    };
-
-    // Ensure start state gets ID 0
-    getNewId(finalFragment.start);
-
-    // Adjacency list for BFS
+    // Canonical renumbering using topological flow order (start = 0, accept = end)
     const adj = new Map();
     for (const t of finalFragment.transitions) {
       if (!adj.has(t.from)) adj.set(t.from, []);
       adj.get(t.from).push(t.to);
     }
+    // Deprioritize bypass edges to final accept so the main body is numbered first
+    for (const [u, neighbors] of adj.entries()) {
+      neighbors.sort((a, b) => {
+        if (a === finalFragment.accept) return 1;
+        if (b === finalFragment.accept) return -1;
+        return a - b;
+      });
+    }
 
-    const queue = [finalFragment.start];
-    const visited = new Set([finalFragment.start]);
-
-    while (queue.length > 0) {
-      const u = queue.shift();
-      getNewId(u);
-      const neighbors = adj.get(u) || [];
-      for (const v of neighbors) {
-        if (!visited.has(v)) {
-          visited.add(v);
-          queue.push(v);
+    // Detect cycle back edges with DFS
+    const visited = new Set();
+    const inStack = new Set();
+    const backEdges = new Set();
+    function findBackEdges(u) {
+      visited.add(u);
+      inStack.add(u);
+      for (const v of adj.get(u) || []) {
+        if (v === u || inStack.has(v)) {
+          backEdges.add(`${u}->${v}`);
+        } else if (!visited.has(v)) {
+          findBackEdges(v);
         }
       }
+      inStack.delete(u);
+    }
+    findBackEdges(finalFragment.start);
+
+    // Post-order DFS on forward DAG to produce clean topological flow
+    const postOrder = [];
+    const visitedDag = new Set();
+    function dfsDag(u) {
+      visitedDag.add(u);
+      for (const v of adj.get(u) || []) {
+        if (!backEdges.has(`${u}->${v}`) && !visitedDag.has(v)) {
+          dfsDag(v);
+        }
+      }
+      postOrder.push(u);
+    }
+    dfsDag(finalFragment.start);
+
+    const topoOrder = postOrder.reverse();
+    const stateMap = new Map();
+    let currentNewId = 0;
+    for (const s of topoOrder) {
+      if (!stateMap.has(s)) stateMap.set(s, currentNewId++);
     }
 
     // Assign any unvisited states (if any exist)
     for (const t of finalFragment.transitions) {
-      getNewId(t.from);
-      getNewId(t.to);
+      if (!stateMap.has(t.from)) stateMap.set(t.from, currentNewId++);
+      if (!stateMap.has(t.to)) stateMap.set(t.to, currentNewId++);
     }
-    getNewId(finalFragment.accept);
+    if (!stateMap.has(finalFragment.accept)) stateMap.set(finalFragment.accept, currentNewId++);
 
     const remappedTransitions = finalFragment.transitions.map(t => ({
       from: stateMap.get(t.from),
