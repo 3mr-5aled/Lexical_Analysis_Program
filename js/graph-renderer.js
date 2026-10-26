@@ -732,13 +732,61 @@ export class GraphRenderer {
       const ex = port ? port.ex : p2.x;
       const ey = port ? port.ey : p2.y;
 
-      const angleStart = Math.atan2(ey - p1.y, ex - p1.x);
-      const sx = p1.x + r1 * Math.cos(angleStart);
-      const sy = p1.y + r1 * Math.sin(angleStart);
+      // Check if p1 has states beneath it in the same column
+      const belowStates = [];
+      for (const [otherId, pos] of positions.entries()) {
+        if (otherId !== t.from && !pos.isTrap && !isTrapState(otherId)) {
+          if (Math.abs(pos.x - p1.x) <= 35 && pos.y > p1.y + 20) {
+            belowStates.push(pos);
+          }
+        }
+      }
 
-      const pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
-      const labelX = (sx + ex) / 2;
-      const labelY = (sy + ey) / 2;
+      let pathD = '';
+      let labelX = 0;
+      let labelY = 0;
+
+      if (belowStates.length > 0) {
+        // Upper stacked state: route around the outside of the column via clearance lane
+        const maxBelowY = Math.max(...belowStates.map(s => s.y));
+        const maxColX = Math.max(p1.x, ...belowStates.map(s => s.x));
+        const minColX = Math.min(p1.x, ...belowStates.map(s => s.x));
+
+        if (p1.x >= p2.x) {
+          // Route around the RIGHT side
+          const sx = p1.x + r1;
+          const sy = p1.y;
+          const cx1 = maxColX + 70;
+          const cy1 = p1.y + 20;
+          const cx2 = maxColX + 70;
+          const cy2 = maxBelowY + 40;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          labelX = cx1;
+          labelY = (p1.y + maxBelowY) / 2;
+        } else {
+          // Route around the LEFT side
+          const sx = p1.x - r1;
+          const sy = p1.y;
+          const cx1 = minColX - 70;
+          const cy1 = p1.y + 20;
+          const cx2 = minColX - 70;
+          const cy2 = maxBelowY + 40;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          labelX = cx1;
+          labelY = (p1.y + maxBelowY) / 2;
+        }
+      } else {
+        // Direct straight line to dedicated angular port
+        const angleStart = Math.atan2(ey - p1.y, ex - p1.x);
+        const sx = p1.x + r1 * Math.cos(angleStart);
+        const sy = p1.y + r1 * Math.sin(angleStart);
+
+        pathD = `M ${sx} ${sy} L ${ex} ${ey}`;
+        labelX = (sx + ex) / 2;
+        labelY = (sy + ey) / 2;
+      }
 
       svg += renderEdgeMarkup(pathD, labelX, labelY, t.symbol, true);
     }

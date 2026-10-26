@@ -175,4 +175,60 @@ test('assigns distinct angular fan-in ports on trap state perimeter for incoming
   }
 });
 
+test('routes upper stacked error transitions via outer clearance lanes avoiding intermediate states', () => {
+  const graphModel = {
+    states: [
+      { id: 'd0', label: 'd0', isStart: true },
+      { id: 'd1', label: 'd1' },
+      { id: 'd2', label: 'd2' },
+      { id: 'd3', label: 'd3' },
+      { id: 'Φ', label: 'Φ' }
+    ],
+    transitions: [
+      { from: 'd0', to: 'd1', symbol: 'a' },
+      { from: 'd1', to: 'd2', symbol: 'b' },
+      { from: 'd1', to: 'd3', symbol: 'c' },
+      { from: 'd3', to: 'd1', symbol: 'a' }, // return loop under bottom
+      { from: 'd0', to: 'Φ', symbol: 'b' },
+      { from: 'd1', to: 'Φ', symbol: 'c' },
+      { from: 'd2', to: 'Φ', symbol: 'a' }, // upper stacked to Φ
+      { from: 'd3', to: 'Φ', symbol: 'b' }, // lower stacked to Φ
+      { from: 'Φ', to: 'Φ', symbol: 'a, b, c' }
+    ],
+    startState: 'd0',
+    acceptStates: ['d2']
+  };
+
+  const positions = GraphRenderer.computeLayout(graphModel.states, graphModel.transitions, 'd0', 900, 450);
+  const posD2 = positions.get('d2');
+  const posD3 = positions.get('d3');
+  assert.ok(posD2.y < posD3.y, 'd2 should be stacked above d3');
+
+  const svg = GraphRenderer.createSvgString(graphModel, { isDark: true, width: 900, height: 450 });
+
+  // Locate the edge group for d2 -> Φ (symbol 'a' and dead-arrow)
+  // Matching edge group containing symbol 'a' and dead-arrow marker
+  const edgeGroups = svg.match(/<g class="edge">[\s\S]*?<\/g>/g) || [];
+  const d2ToTrapEdge = edgeGroups.find(g => g.includes('>a<') && g.includes('dead-arrow'));
+  assert.ok(d2ToTrapEdge, 'd2 -> Φ edge markup must exist');
+
+  // Verify the path uses a clearance curve (cubic Bézier C command)
+  const pathMatch = d2ToTrapEdge.match(/<path d="([^"]+)"/);
+  assert.ok(pathMatch, 'path d attribute must exist');
+  const pathD = pathMatch[1];
+
+  assert.ok(pathD.includes('C'), `Expected d2 -> Φ path to be a curved clearance path with 'C', got: ${pathD}`);
+
+  // Extract control points from cubic curve M sx sy C cx1 cy1, cx2 cy2, ex ey
+  const cMatch = pathD.match(/C\s*([\d.-]+)\s+([\d.-]+)[,\s]+([\d.-]+)\s+([\d.-]+)/);
+  assert.ok(cMatch, `Failed to parse control points from ${pathD}`);
+  const cx1 = parseFloat(cMatch[1]);
+  const cx2 = parseFloat(cMatch[3]);
+
+  // Both control points must be pushed outward to the right of d3 by at least 45px
+  assert.ok(cx1 >= posD3.x + 45, `Expected cx1 (${cx1}) >= d3.x + 45 (${posD3.x + 45})`);
+  assert.ok(cx2 >= posD3.x + 45, `Expected cx2 (${cx2}) >= d3.x + 45 (${posD3.x + 45})`);
+});
+
+
 
