@@ -780,7 +780,14 @@ export class GraphRenderer {
           const cx2 = maxColX + 70;
           const cy2 = maxBelowY + 45;
 
-          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          const laneX = maxColX + 70;
+          const laneY = maxBelowY + 45;
+          const cx3 = laneX;
+          const cy3 = laneY + 35;
+          const cx4 = (laneX + ex) / 2;
+          const cy4 = ey + 15;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2 - 10}, ${laneX} ${laneY} C ${cx3} ${cy3}, ${cx4} ${cy4}, ${ex} ${ey}`;
           labelX = cx1;
           labelY = (p1.y + maxBelowY) / 2;
         } else {
@@ -792,7 +799,14 @@ export class GraphRenderer {
           const cx2 = minColX - 70;
           const cy2 = maxBelowY + 45;
 
-          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${ex} ${ey}`;
+          const laneX = minColX - 70;
+          const laneY = maxBelowY + 45;
+          const cx3 = laneX;
+          const cy3 = laneY + 35;
+          const cx4 = (laneX + ex) / 2;
+          const cy4 = ey + 15;
+
+          pathD = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2 - 10}, ${laneX} ${laneY} C ${cx3} ${cy3}, ${cx4} ${cy4}, ${ex} ${ey}`;
           labelX = cx1;
           labelY = (p1.y + maxBelowY) / 2;
         }
