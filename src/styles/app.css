@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html.dark {
+  background-color: #051026;
+}
+
+html.dark body {
+  background: radial-gradient(circle at 50% 15%, #083645 0%, #051026 85%)
+    no-repeat fixed;
+  background-color: #051026;
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family:
+      "Inter",
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.mono {
+  font-family:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+}
+
+.canvas-bg {
+  background-color: #ffffff;
+  background-image: radial-gradient(#cbd5e1 1.25px, transparent 1.25px);
+  background-size: 24px 24px;
+}
+
+.canvas-bg-dark {
+  background-color: #0b1120 !important;
+  background-image: radial-gradient(
+    #334155 1.25px,
+    transparent 1.25px
+  ) !important;
+  background-size: 24px 24px !important;
+}
+
+.active-sim-state {
+  animation: pulseGlow 1.2s infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7));
+  }
+  to {
+    filter: drop-shadow(0 0 16px rgba(34, 197, 94, 1));
+  }
+}
+
+/* State Node Aesthetics & Hover Reactions */
+.state-node {
+  cursor: grab;
+  transition: filter 0.15s ease;
+}
+
+.state-node:active {
+  cursor: grabbing;
+}
+
+.state-node:hover .state-outer {
+  stroke-width: 3.2px;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.45));
+}
+
+/* Edge Hover & Transition Path Aesthetics */
+.edge-group {
+  cursor: pointer;
+}
+
+.edge-group:hover .edge-path {
+  stroke: #0284c7 !important;
+  stroke-width: 4.2px !important;
+}
+
+.edge-group:hover .edge-label-bg {
+  stroke: #0284c7 !important;
+  stroke-width: 2.6px !important;
+}
+
+.edge-label-group {
+  cursor: grab;
+  user-select: none;
+}
+
+.edge-label-text {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 800 !important;
+  letter-spacing: 0.01em;
+}
+
+.edge-label-group:active {
+  cursor: grabbing;
+}
+
+.edge-label-bg {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.18));
+  transition:
+    stroke 0.15s ease,
+    stroke-width 0.15s ease;
+}
+
+.edge-label-group:hover .edge-label-bg {
+  stroke: #0284c7 !important;
+  stroke-width: 2.8px !important;
+  filter: drop-shadow(0 3px 8px rgba(2, 132, 199, 0.35));
+}
+
+.curve-handle-group {
+  user-select: none;
+}
+
+.curve-handle-dot {
+  cursor: grab;
+  transition:
+    r 0.15s ease,
+    filter 0.15s ease;
+}
+
+.curve-handle-group:hover .curve-handle-dot {
+  r: 8px !important;
+  fill: #0284c7 !important;
+  filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.7));
+}
+
+.curve-handle-group:active .curve-handle-dot {
+  cursor: grabbing;
+  r: 9px !important;
+}
+
+.edge-hit-path {
+  cursor: grab;
+}
+
+.edge-hit-path:active {
+  cursor: grabbing;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

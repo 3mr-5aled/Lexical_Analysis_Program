@@ -21,19 +21,29 @@ export class StringSimulator {
    * }}
    */
   static simulate(dfa, inputString) {
-    const startState = dfa.states.find(s => s.isStart) || dfa.states[0];
+    const startState = dfa.states.find((s) => s.isStart) || dfa.states[0];
     if (!startState) {
-      return { accepted: false, path: [], finalState: '', reason: 'DFA has no states' };
+      return {
+        accepted: false,
+        path: [],
+        finalState: "",
+        reason: "DFA has no states",
+      };
     }
 
-    const stateMap = new Map(dfa.states.map(s => [s.id, s]));
+    const stateMap = new Map(dfa.states.map((s) => [s.id, s]));
     let currentState = startState.id;
     const path = [];
 
     // Normalize empty / epsilon string
-    const chars = (inputString === 'ε' || inputString === 'ϵ' || inputString === '@' || inputString === '\\e' || inputString === '')
-      ? []
-      : inputString.split('');
+    const chars =
+      inputString === "ε" ||
+      inputString === "ϵ" ||
+      inputString === "@" ||
+      inputString === "\\e" ||
+      inputString === ""
+        ? []
+        : inputString.split("");
 
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
@@ -42,7 +52,7 @@ export class StringSimulator {
           accepted: false,
           path,
           finalState: currentState,
-          reason: `Rejected: Character '${char}' at index ${i} is not in alphabet Σ = {${dfa.alphabet.join(', ')}}`
+          reason: `Rejected: Character '${char}' at index ${i} is not in alphabet Σ = {${dfa.alphabet.join(", ")}}`,
         };
       }
 
@@ -50,23 +60,24 @@ export class StringSimulator {
       path.push({
         state: currentState,
         symbol: char,
-        nextState: next
+        nextState: next,
       });
       currentState = next;
     }
 
     const finalStateObj = stateMap.get(currentState);
-    const isAccepting = finalStateObj?.isAccept === true && currentState !== dfa.trapState;
+    const isAccepting =
+      finalStateObj?.isAccept === true && currentState !== dfa.trapState;
 
     const reason = isAccepting
       ? `Accepted: Simulation terminated in accepting state '${currentState}'`
-      : `Rejected: Simulation terminated in non-accepting state '${currentState}'${currentState === dfa.trapState ? ' (Dead/Trap State Φ)' : ''}`;
+      : `Rejected: Simulation terminated in non-accepting state '${currentState}'${currentState === dfa.trapState ? " (Dead/Trap State φ)" : ""}`;
 
     return {
       accepted: isAccepting,
       path,
       finalState: currentState,
-      reason
+      reason,
     };
   }
 
@@ -81,12 +92,16 @@ export class StringSimulator {
     const accepted = [];
     const rejected = [];
 
-    const queue = [''];
-    const visited = new Set(['']);
+    const queue = [""];
+    const visited = new Set([""]);
 
-    const alphabet = dfa.alphabet && dfa.alphabet.length > 0 ? dfa.alphabet : ['a', 'b'];
+    const alphabet =
+      dfa.alphabet && dfa.alphabet.length > 0 ? dfa.alphabet : ["a", "b"];
 
-    while (queue.length > 0 && (accepted.length < maxAccepted || rejected.length < maxRejected)) {
+    while (
+      queue.length > 0 &&
+      (accepted.length < maxAccepted || rejected.length < maxRejected)
+    ) {
       const str = queue.shift();
       const sim = StringSimulator.simulate(dfa, str);
 
@@ -110,7 +125,7 @@ export class StringSimulator {
 
     return {
       accepted,
-      rejected
+      rejected,
     };
   }
 }

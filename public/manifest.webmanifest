@@ -1,0 +1,25 @@
+{
+  "name": "Visual Automata Studio - FCIS '26",
+  "short_name": "AutomataStudio",
+  "description": "Interactive Compiler Theory Automata Visualizer (RE → NFA → DFA → Hopcroft Minimization)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1120",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

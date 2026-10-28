@@ -1,311 +1,56 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Compiler Automata Visualizer - FCIS '26</title>
-  <meta name="description" content="Interactive Regular Expression to Minimized DFA Pipeline (Thompson, Subset Construction, Hopcroft Minimization)">
-  <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-  <div class="app-container">
-    <!-- Header -->
-    <header class="header">
-      <div class="brand">
-        <div class="brand-icon">λ</div>
-        <div>
-          <div style="display:flex;align-items:center;">
-            <h1 class="brand-title">Compiler Automata Visualizer</h1>
-            <span class="brand-badge">FCIS '26</span>
-          </div>
-          <p class="brand-desc">Interactive RE → NFA (Thompson) → DFA (Subset) → Minimized DFA (Hopcroft)</p>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Light / Dark Theme">
-          <span id="theme-icon">☀️</span>
-          <span id="theme-text">Light Mode</span>
-        </button>
-      </div>
-    </header>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+    />
+    <title>Compiler Automata Studio — FCIS '26</title>
+    <link
+      rel="icon"
+      type="image/png"
+      href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAS4UlEQVR4nO1aeXhURbavuluv6U66O0sn6b2zQIAEARGCIAFBZEcQ2RRwwRn1qYPzDT6ZUVERXMBxGAUVXJBF1gAiCBhAQSCyCQ4QQIghCYGQhKaTdLr73nveV9XdECAJ4en73j99vi9J3e5bVWerc37nVBCKUpSiFKUoRSlKUYpSlKIUpSg1IowxQohBCLPkCf3/EEYIcxzHq5QGYxyLGeUN/ODwMxPm96b5mON4y1PPj08aP2kgYjm+dbJg8g7mzH/6y0PWFavmxvXpn0E/Zphb8/sHEN2HYTDH88rkqS8+YdtzuND+S0mxfcdPPyRMmjIKYSwQoQ3dezrsy1fNSX522sNEVDInsgarVHBKU6IOY0bj3n/8uG315tVkrDIn6xmO55rfnSUKRYyh971d0mQAR+llrzI5OZZqpUklR7i+4buW3m1qOtk3tHdoNmYUtgVffGgHAIcI4PQAWGUAJwCk/GPm3xDGCkVCYpzz5PmKNAAwDBjag6yCBQW1XsoLL45p4weIGzBkYOrCFUvMs/41xzhm4uisIEDihEn9mxcCM5hXKNXO7QcKHTKAcfxjI+nC15hrjhiMMY8xFjCxRmvdgewZshx1d57nlaoUS3LC+EfHOesALBW1PvOfpz6ty8rJSZ7+xsu2mkDQWRUAbZssJ1GCadTYQY4ggHPP8aOCWhuDWJYh62kz2yWnzlswy3XkTLHjeNkFe9H5C66fz5wxv/72NLUzzdyMFTj62zhm4lCHBGA7cPokr9Hq6PlqxqJhxTDGYQ/kph88ut/5XeGetH2HCnVdurrJPMy0oLjQkSJrC7E9emVb3vn3G/bvDxXaf/PU2aplsNVJkm3J1/mYYfVEWMywsfaCwkKHLEsJ4yYPQQzD8ypNjGPXz4eIZ8Q//tQYokTMcSQmCBpjktO+dusWewDAGgSwfb5yuVKtT8E0ljRtDcwJgtq+/eB+4nqJf5n+NF2Q5XCLQmAspK4v2GQDgNQqCchf89wFs+m5bM5zMBWeUSeaTbZFyxcSF3cAAHX5agBbaV3Q6gOwrSvYRgQnTLMsa3DuPnKUGMc0cvy94SDNJU35r4eJt9r3nPiPoNXpEGa45CefHZZJ1vtmZ4Ft/Y6d1uUbNzq+/2lvhggQP2psXrOWNPQZ0M1ZD+A8561TO9yp1ELNBL9wUMTa9DZ2V0Vd0FLZINkrZbBUByX78dIKhT4uNmzhppTGaFIsiWn7jh21EKFrAGwrNq+Nn/zkmJh22VnGfkPud3gBbDWilPrWvLnGgcMHWxZ8+RlRiqPU61OlWOLDxwyrzCkJtjOXahx+AOPw0f0Rxry+V1568iszn8QMZ7Bt2L4pcc78dwReMCW/Mftp7R2dbTdLw7KEUd760dKP7LIsWb/6Zi2Nti1EfszRI8Ml/feMF0igspXW+u27j5y0XgwAYcb04LjBNDbQo3WdAjDDMgrHym/yqcVPX6g0Dht5f8g1r6Y1Rco/3vybi1gWrnmHyweQMPGJa3GJxA+MBduilV+Qo2H7Yu1SMjfkHXQd3rn1x222j5fPJePw5016NFYa4w2uoguV1MUef2Y83YQK2dTbdA3MK1Ua175jRRa/DNZDZ0sSevQe4Th3xW/zAzhWbFp/oxLDnobjcnvluGoBbFX1flP/wX0ocxyHibJo3GBCBokfMbqvdfXG5Y5dh3ZbFq9aaOjdr3PjlEf5w5hNHDd5uEsEsBdXedTJlkTiYZgXyBqY18cqeK1OoDEp9H6TErGmQcN6O/0AzoqGoDYrx03FbM79iSAYM3H33p/rIq7qk6XU+V8uYlg+0bl1zx6bD8BVXuvXutKtjdeJeE3qq7OnE4tZN+/+AWNGjVgauJpSMvmcC1mPZhcS5Rt7E31T60yzOM95fM4ggPGhCSHPa854jYi5thlilLn35Mk8yGLJmdP+00XnEUIAAE1OhJAbsTGjx02WWJAZETN1G1YtBZC99etWfkZ4lw0aQTtizAjq1mGmQZIwy3O80PPeEQCYwXV19XQ5stGNewEQRcsIYxEBBBGDRfosy9feCY2h4dzZS3D29HGZQ0jZoy+JA+xV3ml6xy0rABPbZHfKJbaSTpw4GAw0BCjTTSmALCZJSJVojuPz+o2UZcwwp86crdux7SeQ5YB3w9qNzEVPvSQBUg174FFOEAQieMT9dZ3uzGA7dugoVwdEISe7s9IYH4tkCWOev4lLkKSIkPQvfb6RWBaJoiTKRScOkEe+fbu7OIL26DwckqEZQzKRgdKYoGct1nTymnzy2BFik2ajPxUEMzGDhveTzSYdefRtXrckUF9Xj3hOrispvijv3rMFMRgx7bLaxXTr0R4BYApSEGK1YydOllUsQrzABZITDPEffDxPoY3RQ1CkAYoGzVvC7sb2IEIiOXD8l8OsjBC22TK4+AQd3fMWiJSJDHiHy4qMJjMTRChQXPwrQiA3N5VYk2EYXjNy3BRRQgjXS6h2zYoVCEDCGBPVSd71yz5jAaGgwKCYB8dTrA6ihDXmFJMwbOSkYANC6OuVG3F1rYhGDB6RsrFgk2ng0J4cyytBklgkh7dvjTKocQECxWdO4wA5l3Fahc2RRJVzrTxomYyDHhjhrJHB5QGIy83rEkpfN4OYq26c3amNuzIgWWsB7Nv3F7IsrwwhxlBQUhjjDc6T5yttV2RwFJVfUFltyRgzKssb78xwAYDzcHEJzwtJ8WMmjHJXXKkj4IlkBcd3e3ebn582JSYr2xVKZ42qv1DgbY4nRn937zucHhmcDQCm0RMGNZmCbyAmMhDsjjSkwAgHgkj2XvaEA1MTyqYBhdWOHD9ajOEZnkWoIX/1IkkSg5hlAYFMGfVXX/KKWzd/BTzIvNucoLDYUtR2l1X56BN/RRJC9R+8Oz0oBqsrl3+Zf/HeXjmwZNXn4GsQUV7X7qo5b843Few9ad+8+1vziy8/rbujSwZVhiQx1K1v8IhwsAOp4nwV4/UGEHGa2DhDqIBrnQOg5FfeeodozlnuldTpmfYmEWA49wuaGJ3z8JkSqxfAVVbr1zhclsbvR1JkbK++d7Ql1dtr78wQeEWq+7u9ewmYcW4/sJ9XKjUkl4dhNsXuug4d01KmvzbVtnP/XkeNSIEP8QxnVRBsm7/fkvDwxGEcJ6huSoVhvtRJyfHOU+VVpC4wT3v5+RZxzI1knfX+hw6igJIan9LuSmlKAeFiiTEMHpbnJiCmHsC6ZssmzPEqLAgMBTJkQ46jAY/VaFXGu/O6KFUaq33Z2rWkIHFf9AX1nbu1u06IUP1Pt6C7cJxK3+nONskvTH/K/u2uAkdVAKwECQYBHNt2FWjbZjmvmx9WgNKUaCDHjZbMr787g+KG1irA/ta8+UQB7pIan9rmSG7SA8KFj3Xx6uUU6NRKYOw/cAgFMrQEJueVghbyI/AKpT6uZ9+7HbsPHSIVWYYPIHHilNHke0yg9w1EwdK1M0uVQfoC+k5d26a89+Hb9rLLvlQSK05VXNBltXfRMx7iKaQAY7yB1CBEAZZZ782kvNwiBnCRgSgGAwQoywzDAMvdHP3IRrKMNVa7ie/dd2jQJyKo94tC7j29E9p1cAFmRQYItGE4JjbWwCWkpDJZmV3YnOx2ogohoSYgV//5sTGXvlqyATOsDJJ4U4ABmrdJHqMIliwmgSRKngP7TngOFr4Uu2zxsrj5n68I5rhd8e/N/8I3sHefYDDoRzTzAK0LMMuQ5IPkgJ/kmVt2JbjIQPJ6vURqTmA5TqUSmrIOyMDEDHtwMErUKfEljyjp9Jzy7y88F9knshc0GsseGaHvdmyu+Ouzf8caDdLl9c3wFGw9ElZo01xRUEjFiOwtI5YNXi7ccwRNeXi0YcPmXZDbvbuma26byz9sP0yOJlEeo1DwjMArZUBIqqmpJCsRPqA1CoCy0hIsEkCgJGdXExIKX51Mcj/HcYJ6xENTRL+MgFVxTNHJs3J93WWEsUxeJACAzvM11MqXKs4Fjx852LC9YGfDkcNlsWMfHqR7b+4nvg2bVnoKto67Kl0riHqGLANiWcnz075jcYUH9jAD7+ml6Ny1C/phxxHEYLoWazTpkTpGDRJVQFVr1uYiA9+5s6fUDUEkqXnEJpoTGstPojpRgLZzl3Quu0PHgIQRX3L27Pk+d/UI1novI3xNGIwARJmaj+iDfq5JSTXEzpr7Sa3MIUXXHgM0KRZTXWlJBWYYCLl9azVBKxAZaqoqiMNzpFtFNw0XhknmBKRWMGwAIamy8mLYlVpckokM5LLSMqi7UgtKhDh3WhpZFcKgI6QFzGpGjZ8QULGI9B0D32z4vMHrqZQw8kmS1BD5ESXZT0AZwkwQcayECTQuL71cm7/mU5LwZHOcNmbIqPtpS6gphNdC4UKIZVgOudxZhDf/+fKSiFbIJD7RbCb9YulKregvPnWupWLuJgU0/FZ8Xi4tLyZr8fa0TJIDQmvTwgcrdLFa1X1DxoMPIVzXIHtXL19JQgdF4RGmGzMvSySyhlwXQGpYt2o5AYmSH5BqxMjHGZbliVddFTqC8hoVLmE8ERqTQkkGNm7wsF64Y4cO+KJPbNi9ozDkaSRwIiy07ZAjkqK5quqCWHru0lWvaY0CgoEGP/x64jBto7RreyeDGJZUfKF0hRld/wE9wJmSKHOApP2H99YePXSGLk+qswjTTVRdYRcH7/Yt+/CZcxeIXnCnTl1jOnZJI6gOE8xA0B1BeQjxvFKp4lUqFTEohJEfEZ4USmqLNUn72uwPRBWDxI3rFtcWHS8jbAJRNEKMkJ6RTdQlFp067L/i8SGGaf0RQIAk/959BeTUss60dqoUSxxRPHUhjFjVyLGTRb8oYhbJvjUrPpFlCEHfWxGZz7Lg916pD3z7zZdYkEWRxaJqxIMP0pqd9AcYVoh/9MnB9l37d9h+vXDZ+uvFK/Z9v+xLeurZMYJCqUaiJMS4063mZWvXBzMdNr6o4kLlqy++RD2QxClZRso4oxa1zepMtvQf3LODyHM7FSUhRpPVweW8WB+0NQAYho/uRxik3ZYO2VaXH8AqAbgr/aCyWBNbapbeSFehcW6v7DQJwCITCH3FL+jjDEKMPs6+adv6DILe1mzONz7+zGOmR56clLokf2k66QVu/n5bwoRHJzmOlZSTixFHWbVH361HNgVJDHO1NI/N63cXAWYuTxB03Xpmh6LWLe8yGhEmGIJROr7dtZO0qlLnfTovfAWFDT17p1kXfDbb8sGnc8zPTKW9wtu9+SHECjxvfWXWC5Z5C+fYP/pirj4tM826LH9xhk+G2Nxe92jjTG7DA2OGG0Y/MkoTn5Su73xXrqvM4yUXHxY/gP1IUZGuS7f24YZoKPSHmrmc9Y05M1yyLDl2H/6ZUyjUt31Ph0O9OjbxT88/Yied2GPl5QqD0Xiti0phbqhj+/uI9vhIB9gwYGheGwCI7TOgv75Tt+7pHl8woxYgwwOQ7pNB17NPXuyd3XunBQBs+Vu+VSUmJzcW/mpxptZoXfuOF5HiKWXaq8+F3mllDXCVwnU8qajSTl+oIs1F07hJw+liJAJH7u5uy62aIDJfUJDCSbAuzV/i+OnEfxSCwuI6V1Vj//q79apki1UVn5RqX/H10rSLtT6VUmmz7dhfaF2Wv4LUBahR2yzSBzDdN7Sn2yeDu7TGq7G7mq5jWs0cxpx55pyXadNi066dLMspG9+6/iEUSpe8+8CpIvO8T/+tb9uhU1sJICancw6t+zFWaDKy2pK4oO+am5sw658zHUd/K8YMcz1ED98JOJauX0H4tcxdMId2j5sotJoj5rqnUMqQPB/8cwH67WI1e/ddPfQ9++SQIuj2AsotKBw/ZK+nmjUYkyTP5XqCCJRt2qeR5ixGmFW0yXJQHH/pkpfTG024odZLUU0EFxB+ZBnHZndy8vf1G86WXamtnvfuXJoZboV+WuSNpVGVS3lu2hRy7Wxbt+3r8OXGH+YFkXiT/PKbUzMv1fpUCpXV+vnKxRkSgPmV2f8wT399WiYJemu25HOskJpRVlWT+v6CWTQGRc52qAzm7Yu+WugmDZCXZkwNl9m/lztMXYtXqdTuHYU/kI5Owsgx3W8/rbSwRbj5obY7kzJrg5J13qL3iaCWt/81011S7SFn2Tbv47kCp7CkzHrvtbZBgJg27W2RC5ZIX9LY5762mRJA2o9HD/IxOm34SPwRHGL6W2mK1+q6dber0zPj/jf/9NAKT2MTxk8e0p542rL8pTpXZkdNrMGt0RtcMY60bOvCpR+T75KfCqfe6ztASONwx+i659pViWZSFP1Bwkfo2mL/d/8fFLr/40zDR97jLr5QTv6jI/14eYX7WCkdp5VX1SSMnTQwdBfYbGBrnBJvm3DL35IuN4Hj0Hzz4vcScVsZWIU2RqcdOLSntmv3XmQ738HCH70b87c3eC6TfoNEi6rm+CNfkYIoSlGKUpSiFKUoRSlKUYpSlKKEWkX/A5hi0eezc5wQAAAAAElFTkSuQmCC"
+    />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
-    <!-- Main Control Panel -->
-    <section class="control-card">
-      <div class="preset-row">
-        <span class="preset-label">📚 Course Presets:</span>
-        <select id="preset-select" class="preset-select">
-          <option value="" disabled selected>Select an example from Lectures & Labs...</option>
-          <option value="(ab|ac)*">Lab 4 - Example 1: (ab|ac)*</option>
-          <option value="(a|b)*a(a|b|ε)">Lab 4 - Example 2: (a|b)*a(a|b|ε)</option>
-          <option value="(ba)+(a*b*|a*)">Lab 4 - Example 3: (ba)+(a*b*|a*)</option>
-          <option value="a|abc*">Lecture 4 - Slide 47: a|abc*</option>
-          <option value="(ab|c)*">Lab 3 - Exercise 1: (ab|c)*</option>
-          <option value="(a|b)*a">Lab 3 - Exercise 2: (a|b)*a</option>
-          <option value="a*b(a|b)*">Lab 3 - Self Study: a*b(a|b)*</option>
-          <option value="(a|b)(a|b|0|1)*">Lecture 3 - Identifiers: Letter(Letter|Digit)*</option>
-        </select>
-        <div class="quick-chips">
-          <button type="button" class="chip-btn" data-insert="ε" title="Insert Epsilon">[ + ε ]</button>
-          <button type="button" class="chip-btn" data-insert="|" title="Insert Alternation">[ | ]</button>
-          <button type="button" class="chip-btn" data-insert="*" title="Insert Kleene Star">[ * ]</button>
-          <button type="button" class="chip-btn" data-insert="+" title="Insert Plus">[ + ]</button>
-          <button type="button" class="chip-btn" data-insert="?" title="Insert Optional">[ ? ]</button>
-          <button type="button" class="chip-btn" data-insert="()" title="Insert Parentheses">[ ( ) ]</button>
-        </div>
-      </div>
+    <!-- PWA & Mobile Web App Meta -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#0284c7" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Automata Studio" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
 
-      <div class="input-row">
-        <div class="input-wrapper">
-          <input 
-            type="text" 
-            id="regex-input" 
-            class="regex-input" 
-            placeholder="Enter regular expression, e.g. (ab|ac)*" 
-            value="(ab|ac)*" 
-            autocomplete="off"
-            spellcheck="false"
-          >
-        </div>
-        <button id="btn-convert" class="btn-primary">
-          <span>⚡</span> Convert & Analyze
-        </button>
-        <button id="btn-clear" class="btn-secondary" title="Clear input">
-          Clear
-        </button>
-      </div>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body
+    class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none"
+  >
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
 
-      <div id="error-banner" class="error-banner"></div>
-    </section>
-
-    <!-- Global Actions Bar -->
-    <div class="global-actions-bar">
-      <div class="status-summary">
-        <span class="dot-indicator"></span>
-        <span id="status-text">Pipeline ready. Click any box to expand and view on-demand.</span>
-      </div>
-      <div class="toggle-all-group">
-        <button id="btn-expand-all" class="btn-text">Expand All</button>
-        <button id="btn-collapse-all" class="btn-text">Collapse All</button>
-      </div>
-    </div>
-
-    <!-- BOX 1: Thompson NFA -->
-    <div class="accordion-card open" id="card-nfa">
-      <div class="card-header" data-target="card-nfa">
-        <div class="card-header-left">
-          <span class="card-step-num">1</span>
-          <div>
-            <span class="card-title">Thompson's Construction (NFA)</span>
-            <span class="card-subtitle">RE → Non-deterministic Finite Automaton</span>
-          </div>
-        </div>
-        <div class="card-badges">
-          <span id="nfa-stats-badge" class="stage-badge">0 States</span>
-          <span class="toggle-arrow">▼</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="graph-legend">
-          <div class="legend-item"><span class="legend-icon-start"></span> Start State</div>
-          <div class="legend-item"><span class="legend-circle"></span> Regular State</div>
-          <div class="legend-item"><span class="legend-double-circle"></span> Accept State</div>
-          <div class="legend-item"><span style="color:var(--text-muted);font-weight:bold;">ε</span> Epsilon Transition</div>
-        </div>
-        <div id="nfa-graph-viewport" class="graph-viewport-container">
-          <div class="graph-empty-placeholder">NFA diagram will render here...</div>
-        </div>
-
-        <div class="table-section">
-          <h3 class="table-heading">NFA Transition Table</h3>
-          <div class="table-responsive">
-            <table id="nfa-transition-table" class="academic-table">
-              <thead>
-                <tr>
-                  <th>From State</th>
-                  <th>Input Symbol</th>
-                  <th>To State</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- BOX 2: Subset Construction (DFA) -->
-    <div class="accordion-card" id="card-dfa">
-      <div class="card-header" data-target="card-dfa">
-        <div class="card-header-left">
-          <span class="card-step-num">2</span>
-          <div>
-            <span class="card-title">Subset Construction (NFA → DFA)</span>
-            <span class="card-subtitle">ε-closure & Power-set construction</span>
-          </div>
-        </div>
-        <div class="card-badges">
-          <span id="dfa-stats-badge" class="stage-badge">0 States</span>
-          <span class="toggle-arrow">▼</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <!-- Table 1: Intermediate "Sigma | Appears | Goes to" Table -->
-        <div class="table-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <h3 class="table-heading">
-              Intermediate Table: Σ / Appears / Goes To
-              <span class="table-subheading">(FCIS '26 Lab 4 Format)</span>
-            </h3>
-          </div>
-          <div class="table-responsive">
-            <table id="intermediate-table" class="academic-table">
-              <thead>
-                <tr>
-                  <th>Sigma (Σ)</th>
-                  <th>Appears In NFA State</th>
-                  <th>Goes To { ε-closure }</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Table 2: Complete DFA Transition Table -->
-        <div class="table-section">
-          <h3 class="table-heading">
-            DFA Transition Table
-            <span class="table-subheading">(→ = Start State, * = Accept State, Φ = Dead/Trap State)</span>
-          </h3>
-          <div class="table-responsive">
-            <table id="dfa-transition-table" class="academic-table">
-              <thead id="dfa-table-head">
-                <tr>
-                  <th>DFA State</th>
-                  <th>NFA State Subset</th>
-                </tr>
-              </thead>
-              <tbody id="dfa-table-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="dfa-graph-viewport" class="graph-viewport-container">
-          <div class="graph-empty-placeholder">DFA diagram will render here...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- BOX 3: Hopcroft Minimization -->
-    <div class="accordion-card" id="card-hopcroft">
-      <div class="card-header" data-target="card-hopcroft">
-        <div class="card-header-left">
-          <span class="card-step-num">3</span>
-          <div>
-            <span class="card-title">DFA Minimization (Hopcroft / Equivalence Partitioning)</span>
-            <span class="card-subtitle">k-Equivalence Rounds & Group Merging</span>
-          </div>
-        </div>
-        <div class="card-badges">
-          <span id="min-stats-badge" class="stage-badge">0 States</span>
-          <span class="toggle-arrow">▼</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <!-- Equivalence Rounds Timeline -->
-        <div class="table-section">
-          <h3 class="table-heading">
-            Equivalence Partitioning Steps
-            <span class="table-subheading">(0-Equivalence, 1-Equivalence, ... with split justifications)</span>
-          </h3>
-          <div id="equivalence-timeline" class="timeline-container"></div>
-        </div>
-
-        <!-- Minimized DFA Transition Table -->
-        <div class="table-section">
-          <h3 class="table-heading">
-            Minimized DFA Transition Table
-            <span class="table-subheading">(FCIS '26 Lecture 4 & Lab 4 Format)</span>
-          </h3>
-          <div class="table-responsive">
-            <table id="min-dfa-transition-table" class="academic-table">
-              <thead id="min-dfa-table-head">
-                <tr>
-                  <th>Minimized DFA</th>
-                  <th>Original DFA States</th>
-                </tr>
-              </thead>
-              <tbody id="min-dfa-table-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="min-dfa-graph-viewport" class="graph-viewport-container">
-          <div class="graph-empty-placeholder">Minimized DFA diagram will render here...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- BOX 4: String Simulator & Accepted/Rejected Examples -->
-    <div class="accordion-card" id="card-simulator">
-      <div class="card-header" data-target="card-simulator">
-        <div class="card-header-left">
-          <span class="card-step-num">4</span>
-          <div>
-            <span class="card-title">String Simulator & Acceptance Verification</span>
-            <span class="card-subtitle">Interactive String Tracer & 3 Accepted / 3 Rejected Examples</span>
-          </div>
-        </div>
-        <div class="card-badges">
-          <span id="sim-verdict-badge" class="stage-badge">Interactive</span>
-          <span class="toggle-arrow">▼</span>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="simulator-panel">
-          <div class="sim-input-row">
-            <input 
-              type="text" 
-              id="sim-input" 
-              class="sim-input" 
-              placeholder="Type any test string here (e.g. ab, abac, a) to test acceptance..."
-              value="ab"
-            >
-            <div id="sim-badge" class="sim-badge accepted">ACCEPTED</div>
-          </div>
-
-          <div id="sim-trace-box" class="sim-trace-box">
-            <div id="sim-reason-text">Trace will appear here...</div>
-            <div id="sim-trace-chips" class="trace-chips"></div>
-          </div>
-
-          <!-- 3 Accepted & 3 Rejected Examples (Lecture 4 Slide 47 Requirement) -->
-          <div class="examples-grid">
-            <div class="example-card">
-              <div class="example-card-title accepted">
-                <span>✓</span> 3 Example Accepted Strings
-              </div>
-              <div id="accepted-examples-list"></div>
-            </div>
-
-            <div class="example-card">
-              <div class="example-card-title rejected">
-                <span>✗</span> 3 Example Rejected Strings
-              </div>
-              <div id="rejected-examples-list"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <footer class="footer">
-      Compiler Theory & Automata Visualizer • Built for FCIS '26 • Fast, Offline, & Interactive
-    </footer>
-  </div>
-
-  <!-- Application Controller Script (Standalone zero-CORS bundle for file:// double-click & HTTP) -->
-  <script src="js/bundle.js"></script>
-</body>
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if (
+        "serviceWorker" in navigator &&
+        (window.location.protocol === "http:" ||
+          window.location.protocol === "https:")
+      ) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch((err) => {
+            console.warn("SW registration failed:", err);
+          });
+        });
+      }
+    </script>
+  </body>
 </html>

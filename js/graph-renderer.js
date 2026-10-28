@@ -17,6 +17,306 @@
  */
 export class GraphRenderer {
   /**
+   * Computes analytical geometry for an edge between sFrom and sTo.
+   * Directly ported from material/interactive_dfa_studio_c_lexical_analyzer.html.
+   * Calculates perpendicular normal vectors, quadratic bezier chords, tangential arrowhead arrival angles,
+   * and outward normal-offset label coordinates.
+   * @param {{id: string, x: number, y: number}} sFrom
+   * @param {{id: string, x: number, y: number}} sTo
+   * @param {{curve?: number, labelPos?: number, stateRadius?: number}} options
+   * @returns {{isSelf: boolean, pathD: string, sx: number, sy: number, ex: number, ey: number, midX?: number, midY?: number, apexX: number, apexY: number, angleStart?: number, angleEnd?: number, labelX: number, labelY: number, t: number}}
+   */
+  static getEdgeGeometry(sFrom, sTo, options = {}) {
+    if (!sFrom || !sTo) return null;
+
+    const curve = options.curve || 0;
+    const labelPos = options.labelPos !== undefined ? options.labelPos : 0.5;
+    const stateRadius = options.stateRadius || 30;
+
+    const isSelf = sFrom.id === sTo.id;
+    const t = Math.max(0.08, Math.min(0.92, Number(labelPos)));
+
+    if (isSelf) {
+      const dir = curve && curve > 0 ? 1 : -1;
+      const loopHeight =
+        dir < 0
+          ? 52 + Math.abs(curve || -45) * 0.35
+          : 56 + Math.abs(curve || 45) * 0.38;
+      const spread = 0.48;
+      const ctrlSpread = dir < 0 ? 32 : 34;
+
+      let startAngle, endAngle, ctrlX1, ctrlY1, ctrlX2, ctrlY2;
+
+      if (dir < 0) {
+        // Top loop (pointing UPWARDS)
+        startAngle = -Math.PI / 2 - spread;
+        endAngle = -Math.PI / 2 + spread;
+        ctrlX1 = sFrom.x - ctrlSpread;
+        ctrlY1 = sFrom.y - (stateRadius + loopHeight);
+        ctrlX2 = sFrom.x + ctrlSpread;
+        ctrlY2 = sFrom.y - (stateRadius + loopHeight);
+      } else {
+        // Bottom loop (pointing DOWNWARDS, e.g. trap)
+        startAngle = Math.PI / 2 + spread;
+        endAngle = Math.PI / 2 - spread;
+        ctrlX1 = sFrom.x - ctrlSpread;
+        ctrlY1 = sFrom.y + (stateRadius + loopHeight);
+        ctrlX2 = sFrom.x + ctrlSpread;
+        ctrlY2 = sFrom.y + (stateRadius + loopHeight);
+      }
+
+      const sx = sFrom.x + stateRadius * Math.cos(startAngle);
+      const sy = sFrom.y + stateRadius * Math.sin(startAngle);
+      const ex = sFrom.x + stateRadius * Math.cos(endAngle);
+      const ey = sFrom.y + stateRadius * Math.sin(endAngle);
+
+      const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
+
+      // Cubic Bezier evaluation at parameter t
+      const u = 1 - t;
+      const u2 = u * u;
+      const u3 = u2 * u;
+      const t2 = t * t;
+      const t3 = t2 * t;
+
+      const bx = u3 * sx + 3 * u2 * t * ctrlX1 + 3 * u * t2 * ctrlX2 + t3 * ex;
+      const by = u3 * sy + 3 * u2 * t * ctrlY1 + 3 * u * t2 * ctrlY2 + t3 * ey;
+
+      // Outward normal offset for loop label pill
+      const tx =
+        3 * u2 * (ctrlX1 - sx) +
+        6 * u * t * (ctrlX2 - ctrlX1) +
+        3 * t2 * (ex - ctrlX2);
+      const ty =
+        3 * u2 * (ctrlY1 - sy) +
+        6 * u * t * (ctrlY2 - ctrlY1) +
+        3 * t2 * (ey - ctrlY2);
+      const tlen = Math.hypot(tx, ty) || 1;
+      let nx = -ty / tlen;
+      let ny = tx / tlen;
+
+      const outwardX = bx - sFrom.x;
+      const outwardY = by - sFrom.y;
+      if (nx * outwardX + ny * outwardY < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+
+      const labelX = bx + nx * 6;
+      const labelY = by + ny * 6;
+
+      const apexX = sFrom.x;
+      const apexY =
+        dir < 0
+          ? sFrom.y - (stateRadius + loopHeight)
+          : sFrom.y + (stateRadius + loopHeight);
+
+      return {
+        isSelf: true,
+        pathD,
+        sx,
+        sy,
+        ctrlX1,
+        ctrlY1,
+        ctrlX2,
+        ctrlY2,
+        ex,
+        ey,
+        apexX,
+        apexY,
+        loopHeight,
+        dir,
+        labelX,
+        labelY,
+        t,
+      };
+    } else {
+      // Directed edge between distinct states
+      const dx = sTo.x - sFrom.x;
+      const dy = sTo.y - sFrom.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const nx = -dy / dist;
+      const ny = dx / dist;
+      const curveOffset = curve || 0;
+
+      const baseMidX = (sFrom.x + sTo.x) / 2;
+      const baseMidY = (sFrom.y + sTo.y) / 2;
+      const midX = baseMidX + nx * curveOffset;
+      const midY = baseMidY + ny * curveOffset;
+
+      const angleStart = Math.atan2(midY - sFrom.y, midX - sFrom.x);
+      const angleEnd = Math.atan2(sTo.y - midY, sTo.x - midX);
+
+      const sx = sFrom.x + stateRadius * Math.cos(angleStart);
+      const sy = sFrom.y + stateRadius * Math.sin(angleStart);
+      const ex = sTo.x - (stateRadius + 3) * Math.cos(angleEnd);
+      const ey = sTo.y - (stateRadius + 3) * Math.sin(angleEnd);
+
+      const pathD =
+        Math.abs(curveOffset) < 1
+          ? `M ${sx} ${sy} L ${ex} ${ey}`
+          : `M ${sx} ${sy} Q ${midX} ${midY} ${ex} ${ey}`;
+
+      // Curve apex at parameter t = 0.5
+      const apexX = 0.25 * sx + 0.5 * midX + 0.25 * ex;
+      const apexY = 0.25 * sy + 0.5 * midY + 0.25 * ey;
+
+      // Quadratic Bezier evaluation at parameter t
+      const u = 1 - t;
+      const bx = u * u * sx + 2 * u * t * midX + t * t * ex;
+      const by = u * u * sy + 2 * u * t * midY + t * t * ey;
+
+      // Tangent & Normal orientation for edge label pill
+      const tx = 2 * u * (midX - sx) + 2 * t * (ex - midX);
+      const ty = 2 * u * (midY - sy) + 2 * t * (ey - midY);
+      const tlen = Math.hypot(tx, ty) || 1;
+      let normX = -ty / tlen;
+      let normY = tx / tlen;
+
+      if (Math.abs(curveOffset) > 2) {
+        if (normX * nx + normY * ny < 0) {
+          normX = -normX;
+          normY = -normY;
+        }
+      } else {
+        if (normY > 0) {
+          normX = -normX;
+          normY = -normY;
+        }
+      }
+
+      const labelX = bx + normX * 8;
+      const labelY = by + normY * 8;
+
+      return {
+        isSelf: false,
+        pathD,
+        sx,
+        sy,
+        midX,
+        midY,
+        ex,
+        ey,
+        baseMidX,
+        baseMidY,
+        apexX,
+        apexY,
+        nx,
+        ny,
+        dist,
+        angleStart,
+        angleEnd,
+        curve: curveOffset,
+        labelX,
+        labelY,
+        t,
+      };
+    }
+  }
+
+  /**
+   * Projects pointer position onto edge curve to find closest parameter t in [0.08, 0.92].
+   * @param {{id: string, x: number, y: number}} sFrom
+   * @param {{id: string, x: number, y: number}} sTo
+   * @param {{x: number, y: number}} pt
+   * @param {{curve?: number, stateRadius?: number}} options
+   * @returns {number}
+   */
+  static computeClosestTOnEdge(sFrom, sTo, pt, options = {}) {
+    const geom = GraphRenderer.getEdgeGeometry(sFrom, sTo, options);
+    if (!geom) return 0.5;
+
+    let bestT = 0.5;
+    let bestDistSq = Infinity;
+
+    const minT = geom.isSelf ? 0.12 : 0.08;
+    const maxT = geom.isSelf ? 0.88 : 0.92;
+    const steps = 40;
+    const dt = (maxT - minT) / steps;
+
+    if (geom.isSelf) {
+      for (let i = 0; i <= steps; i++) {
+        const t = minT + i * dt;
+        const u = 1 - t;
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        const bx =
+          u3 * geom.sx +
+          3 * u2 * t * geom.ctrlX1 +
+          3 * u * t2 * geom.ctrlX2 +
+          t3 * geom.ex;
+        const by =
+          u3 * geom.sy +
+          3 * u2 * t * geom.ctrlY1 +
+          3 * u * t2 * geom.ctrlY2 +
+          t3 * geom.ey;
+
+        const dSq = (bx - pt.x) ** 2 + (by - pt.y) ** 2;
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestT = t;
+        }
+      }
+    } else {
+      for (let i = 0; i <= steps; i++) {
+        const t = minT + i * dt;
+        const u = 1 - t;
+        const bx = u * u * geom.sx + 2 * u * t * geom.midX + t * t * geom.ex;
+        const by = u * u * geom.sy + 2 * u * t * geom.midY + t * t * geom.ey;
+
+        const dSq = (bx - pt.x) ** 2 + (by - pt.y) ** 2;
+        if (dSq < bestDistSq) {
+          bestDistSq = dSq;
+          bestT = t;
+        }
+      }
+    }
+
+    return Math.round(bestT * 100) / 100;
+  }
+
+  /**
+   * Merges multiple transitions between identical state pairs into unified edges with deduplicated symbol lists.
+   * e.g., [{from:'q0', to:'q1', symbol:'a'}, {from:'q0', to:'q1', symbol:'b'}]
+   *    -> [{from:'q0', to:'q1', symbol:'a, b', symbols: ['a', 'b']}]
+   * @param {Array<{from: string, to: string, symbol: string}>} rawTransitions
+   * @returns {Array<{from: string, to: string, symbol: string, symbols: string[]}>}
+   */
+  static mergeTransitions(rawTransitions) {
+    if (!rawTransitions || rawTransitions.length === 0) return [];
+
+    const edgeMap = new Map();
+    for (const t of rawTransitions) {
+      if (!t || !t.from || !t.to) continue;
+      const key = `${t.from}->${t.to}`;
+      if (!edgeMap.has(key)) {
+        edgeMap.set(key, {
+          from: t.from,
+          to: t.to,
+          symbols: [],
+        });
+      }
+      const sym =
+        t.symbol !== undefined && t.symbol !== null ? String(t.symbol) : "ε";
+      if (!edgeMap.get(key).symbols.includes(sym)) {
+        edgeMap.get(key).symbols.push(sym);
+      }
+    }
+
+    return Array.from(edgeMap.values()).map((e) => ({
+      from: e.from,
+      to: e.to,
+      symbols: e.symbols,
+      symbol: e.symbols
+        .slice()
+        .sort((a, b) => a.localeCompare(b))
+        .join(", "),
+    }));
+  }
+  /**
    * Computes layout coordinates (x, y) for each state in the graph.
    * Uses DAG longest-path layering with cycle back-edge detection and
    * barycentric sorting to maintain clean parallel tracks without line crossings.
@@ -27,17 +327,36 @@ export class GraphRenderer {
    * @param {number} height
    * @returns {Map<string, {x: number, y: number, layer: number}>}
    */
-  static computeLayout(states, transitions, startStateId, width = 900, height = 450) {
+  static computeLayout(
+    states,
+    transitions,
+    startStateId,
+    width = 900,
+    height = 450
+  ) {
     if (!states || states.length === 0) return new Map();
 
-    const isTrapState = (id) => id === 'Φ' || id === 'trap' || id.toLowerCase().includes('trap') || id.toLowerCase().includes('dead');
-    const regularStates = states.filter(s => !isTrapState(s.id));
-    const trapStates = states.filter(s => isTrapState(s.id));
+    const isTrapState = (id) =>
+      id === "φ" ||
+      id === "Φ" ||
+      id === "trap" ||
+      (typeof id === "string" &&
+        (id.toLowerCase().includes("trap") ||
+          id.toLowerCase().includes("dead")));
+    const regularStates = states.filter((s) => !isTrapState(s.id));
+    const trapStates = states.filter((s) => isTrapState(s.id));
 
     // If only trap states exist:
     if (regularStates.length === 0) {
       const positions = new Map();
-      trapStates.forEach(s => positions.set(s.id, { x: width / 2, y: height / 2, layer: 0, isTrap: true }));
+      trapStates.forEach((s) =>
+        positions.set(s.id, {
+          x: width / 2,
+          y: height / 2,
+          layer: 0,
+          isTrap: true,
+        })
+      );
       return positions;
     }
 
@@ -67,7 +386,9 @@ export class GraphRenderer {
       inStack.delete(u);
     }
 
-    const actualStart = regularStates.find(s => s.id === startStateId)?.id || regularStates[0].id;
+    const actualStart =
+      regularStates.find((s) => s.id === startStateId)?.id ||
+      regularStates[0].id;
     if (adj.has(actualStart)) {
       dfsCycle(actualStart);
     }
@@ -84,7 +405,12 @@ export class GraphRenderer {
     }
     for (const t of transitions) {
       const k = `${t.from}->${t.to}`;
-      if (dagAdj.has(t.from) && dagAdj.has(t.to) && !backEdges.has(k) && t.from !== t.to) {
+      if (
+        dagAdj.has(t.from) &&
+        dagAdj.has(t.to) &&
+        !backEdges.has(k) &&
+        t.from !== t.to
+      ) {
         dagAdj.get(t.from).push(t.to);
         inDegree.set(t.to, (inDegree.get(t.to) || 0) + 1);
       }
@@ -141,7 +467,7 @@ export class GraphRenderer {
     for (const [id, layer] of layers.entries()) {
       layerGroups[layer].push(id);
     }
-    const nonEmptyGroups = layerGroups.filter(g => g.length > 0);
+    const nonEmptyGroups = layerGroups.filter((g) => g.length > 0);
     const numLayers = nonEmptyGroups.length;
 
     // 7. Barycentric sorting to align tracks and prevent crossing edges
@@ -149,10 +475,18 @@ export class GraphRenderer {
       const prevGroup = nonEmptyGroups[l - 1];
       const prevRank = new Map(prevGroup.map((id, idx) => [id, idx]));
       nonEmptyGroups[l].sort((a, b) => {
-        const predsA = transitions.filter(t => t.to === a && prevRank.has(t.from)).map(t => prevRank.get(t.from));
-        const predsB = transitions.filter(t => t.to === b && prevRank.has(t.from)).map(t => prevRank.get(t.from));
-        const avgA = predsA.length ? (predsA.reduce((s, x) => s + x, 0) / predsA.length) : 0;
-        const avgB = predsB.length ? (predsB.reduce((s, x) => s + x, 0) / predsB.length) : 0;
+        const predsA = transitions
+          .filter((t) => t.to === a && prevRank.has(t.from))
+          .map((t) => prevRank.get(t.from));
+        const predsB = transitions
+          .filter((t) => t.to === b && prevRank.has(t.from))
+          .map((t) => prevRank.get(t.from));
+        const avgA = predsA.length
+          ? predsA.reduce((s, x) => s + x, 0) / predsA.length
+          : 0;
+        const avgB = predsB.length
+          ? predsB.reduce((s, x) => s + x, 0) / predsB.length
+          : 0;
         return avgA - avgB;
       });
     }
@@ -180,10 +514,12 @@ export class GraphRenderer {
 
     // 9. Position trap states on dedicated lower sink row
     if (trapStates.length > 0) {
-      const regularPositions = regularStates.map(s => positions.get(s.id)).filter(Boolean);
-      const minX = Math.min(...regularPositions.map(p => p.x));
-      const maxX = Math.max(...regularPositions.map(p => p.x));
-      const maxY = Math.max(...regularPositions.map(p => p.y));
+      const regularPositions = regularStates
+        .map((s) => positions.get(s.id))
+        .filter(Boolean);
+      const minX = Math.min(...regularPositions.map((p) => p.x));
+      const maxX = Math.max(...regularPositions.map((p) => p.x));
+      const maxY = Math.max(...regularPositions.map((p) => p.y));
       const trapCenterX = (minX + maxX) / 2;
       const trapY = maxY + 120;
 
@@ -193,7 +529,7 @@ export class GraphRenderer {
           x: trapCenterX + xOffset,
           y: trapY,
           layer: numLayers,
-          isTrap: true
+          isTrap: true,
         });
       });
     }
@@ -240,7 +576,7 @@ export class GraphRenderer {
           if (overlapX > 0 && overlapY > 0) {
             hasCollision = true;
             if (overlapY <= overlapX * 1.5) {
-              const shift = (overlapY / 2) + 1.5;
+              const shift = overlapY / 2 + 1.5;
               if (l1.y <= l2.y) {
                 l1.y -= shift;
                 l2.y += shift;
@@ -249,7 +585,7 @@ export class GraphRenderer {
                 l2.y -= shift;
               }
             } else {
-              const shift = (overlapX / 2) + 1.5;
+              const shift = overlapX / 2 + 1.5;
               if (l1.x <= l2.x) {
                 l1.x -= shift;
                 l2.x += shift;
@@ -273,7 +609,7 @@ export class GraphRenderer {
             hasCollision = true;
             const uX = dist > 0 ? dx / dist : 0;
             const uY = dist > 0 ? dy / dist : -1;
-            const push = (nr + Math.min(l.w, l.h) / 2 - dist) + 2;
+            const push = nr + Math.min(l.w, l.h) / 2 - dist + 2;
             l.x += uX * push;
             l.y += uY * push;
           }
@@ -301,14 +637,27 @@ export class GraphRenderer {
     const width = options.width || 900;
     const height = options.height || 450;
     const centerY = height / 2;
-    const idPrefix = options.idPrefix || 'g' + Math.floor(Math.random() * 10000);
-    const R = 28; // base node radius
-    const isTrapState = (id) => id === 'Φ' || id === 'trap' || (typeof id === 'string' && (id.toLowerCase().includes('trap') || id.toLowerCase().includes('dead')));
+    const idPrefix =
+      options.idPrefix || "g" + Math.floor(Math.random() * 10000);
+    const R = 30; // base node radius
+    const isTrapState = (id) =>
+      id === "φ" ||
+      id === "Φ" ||
+      id === "trap" ||
+      (typeof id === "string" &&
+        (id.toLowerCase().includes("trap") ||
+          id.toLowerCase().includes("dead")));
 
     const states = graphModel.states || [];
     const rawTransitions = graphModel.transitions || [];
-    const startStateId = graphModel.startState || (states.find(s => s.isStart)?.id) || (states[0]?.id);
-    const acceptStateIds = new Set(graphModel.acceptStates || states.filter(s => s.isAccept).map(s => s.id));
+    const startStateId =
+      graphModel.startState ||
+      states.find((s) => s.isStart)?.id ||
+      states[0]?.id;
+    const acceptStateIds = new Set(
+      graphModel.acceptStates ||
+        states.filter((s) => s.isAccept).map((s) => s.id)
+    );
 
     // Combine duplicate edges between same pair
     const edgeMap = new Map();
@@ -320,18 +669,27 @@ export class GraphRenderer {
       edgeMap.get(key).symbols.push(t.symbol);
     }
 
-    const transitions = Array.from(edgeMap.values()).map(e => ({
+    const transitions = Array.from(edgeMap.values()).map((e) => ({
       from: e.from,
       to: e.to,
-      symbol: Array.from(new Set(e.symbols)).sort().join(', ')
+      symbol: Array.from(new Set(e.symbols)).sort().join(", "),
     }));
 
-    const positions = GraphRenderer.computeLayout(states, transitions, startStateId, width, height);
+    const positions = GraphRenderer.computeLayout(
+      states,
+      transitions,
+      startStateId,
+      width,
+      height
+    );
 
     // Compute dynamic node radius per state so composite labels fit cleanly inside
     for (const state of states) {
       const label = state.label || state.id;
-      const nodeR = Math.max(R, Math.min(38, Math.round(label.length * 2.8 + 2)));
+      const nodeR = Math.max(
+        R,
+        Math.min(38, Math.round(label.length * 2.8 + 2))
+      );
       const pos = positions.get(state.id);
       if (pos) {
         pos.r = nodeR;
@@ -363,39 +721,39 @@ export class GraphRenderer {
     const viewBoxWidth = Math.max(width, maxX + 110);
 
     // Theme palette
-    const themeKey = isDark ? 'dark' : 'light';
+    const themeKey = isDark ? "dark" : "light";
     const markerId = `arrow-${idPrefix}-${themeKey}`;
     const startMarkerId = `start-arrow-${idPrefix}-${themeKey}`;
     const deadMarkerId = `dead-arrow-${idPrefix}-${themeKey}`;
     const shadowId = `shadow-${idPrefix}`;
 
-    const bg = isDark ? '#111827' : '#ffffff';
-    const gridDot = isDark ? '#374151' : '#cbd5e1';
+    const bg = isDark ? "#111827" : "#ffffff";
+    const gridDot = isDark ? "#374151" : "#cbd5e1";
 
     // State Colors
-    const regularNodeFill = isDark ? '#1e293b' : '#ffffff';
-    const regularNodeStroke = isDark ? '#64748b' : '#334155';
+    const regularNodeFill = isDark ? "#1e293b" : "#ffffff";
+    const regularNodeStroke = isDark ? "#64748b" : "#334155";
 
-    const startNodeFill = isDark ? '#0c4a6e' : '#f0f9ff';
-    const startNodeStroke = isDark ? '#38bdf8' : '#0284c7';
-    const startArrowColor = isDark ? '#38bdf8' : '#0284c7';
+    const startNodeFill = isDark ? "#0c4a6e" : "#f0f9ff";
+    const startNodeStroke = isDark ? "#38bdf8" : "#0284c7";
+    const startArrowColor = isDark ? "#38bdf8" : "#0284c7";
 
-    const acceptNodeFill = isDark ? '#064e3b' : '#ecfdf5';
-    const acceptNodeStroke = isDark ? '#34d399' : '#059669';
+    const acceptNodeFill = isDark ? "#064e3b" : "#ecfdf5";
+    const acceptNodeStroke = isDark ? "#34d399" : "#059669";
 
-    const trapNodeFill = isDark ? '#4c0519' : '#fff1f2';
-    const trapNodeStroke = isDark ? '#f43f5e' : '#e11d48';
+    const trapNodeFill = isDark ? "#4c0519" : "#fff1f2";
+    const trapNodeStroke = isDark ? "#f43f5e" : "#e11d48";
 
     // Transition Colors
-    const edgeStroke = isDark ? '#94a3b8' : '#1e293b';
-    const edgeDeadStroke = isDark ? '#f43f5e' : '#e11d48';
-    const edgePillFill = isDark ? '#1e293b' : '#ffffff';
-    const edgePillStroke = isDark ? '#64748b' : '#475569';
-    const edgeTextFill = isDark ? '#f8fafc' : '#0f172a';
-    const stateTextFill = isDark ? '#f8fafc' : '#0f172a';
+    const edgeStroke = isDark ? "#94a3b8" : "#1e293b";
+    const edgeDeadStroke = isDark ? "#f43f5e" : "#e11d48";
+    const edgePillFill = isDark ? "#1e293b" : "#ffffff";
+    const edgePillStroke = isDark ? "#64748b" : "#475569";
+    const edgeTextFill = isDark ? "#f8fafc" : "#0f172a";
+    const stateTextFill = isDark ? "#f8fafc" : "#0f172a";
 
     // Edge Classification & Obstacle Avoidance Routing
-    const existingPairs = new Set(transitions.map(t => `${t.from}->${t.to}`));
+    const existingPairs = new Set(transitions.map((t) => `${t.from}->${t.to}`));
     const selfLoops = [];
     const trapEdges = [];
     const backwardEdges = [];
@@ -421,7 +779,7 @@ export class GraphRenderer {
         } else if (p2.layer < p1.layer && !isAdjacent) {
           // Backward multi-layer loop (e.g. 10 -> 1 looping back over top)
           backwardEdges.push(t);
-        } else if (p2.layer > p1.layer && (p2.layer - p1.layer) > 1) {
+        } else if (p2.layer > p1.layer && p2.layer - p1.layer > 1) {
           // Forward bypass skipping intermediate layers (e.g. 0 -> 11 bypassing under bottom)
           bypassEdges.push(t);
         } else {
@@ -440,7 +798,7 @@ export class GraphRenderer {
 
     for (const [targetId, edges] of trapEdgesByTarget.entries()) {
       const pTrap = positions.get(targetId);
-      const rTrap = pTrap ? (pTrap.r || R) : R;
+      const rTrap = pTrap ? pTrap.r || R : R;
       const trapX = pTrap ? pTrap.x : width / 2;
       const trapY = pTrap ? pTrap.y : height;
 
@@ -460,14 +818,18 @@ export class GraphRenderer {
       });
 
       const K = edges.length;
-      const minAngle = -150 * Math.PI / 180;
-      const maxAngle = -30 * Math.PI / 180;
+      const minAngle = (-150 * Math.PI) / 180;
+      const maxAngle = (-30 * Math.PI) / 180;
 
       edges.forEach((t, i) => {
         const p1 = positions.get(t.from);
-        const angle = K === 1
-          ? Math.max(minAngle, Math.min(maxAngle, Math.atan2(p1.y - trapY, p1.x - trapX)))
-          : minAngle + (i / (K - 1)) * (maxAngle - minAngle);
+        const angle =
+          K === 1
+            ? Math.max(
+                minAngle,
+                Math.min(maxAngle, Math.atan2(p1.y - trapY, p1.x - trapX))
+              )
+            : minAngle + (i / (K - 1)) * (maxAngle - minAngle);
 
         const ex = trapX + (rTrap + 3) * Math.cos(angle);
         const ey = trapY + (rTrap + 3) * Math.sin(angle);
@@ -477,27 +839,39 @@ export class GraphRenderer {
 
     // Sort arches by span so they form concentric, non-overlapping bridges
     backwardEdges.sort((a, b) => {
-      const p1a = positions.get(a.from), p2a = positions.get(a.to);
-      const p1b = positions.get(b.from), p2b = positions.get(b.to);
-      return (p1a.x - p2a.x) - (p1b.x - p2b.x);
+      const p1a = positions.get(a.from),
+        p2a = positions.get(a.to);
+      const p1b = positions.get(b.from),
+        p2b = positions.get(b.to);
+      return p1a.x - p2a.x - (p1b.x - p2b.x);
     });
 
     bypassEdges.sort((a, b) => {
-      const p1a = positions.get(a.from), p2a = positions.get(a.to);
-      const p1b = positions.get(b.from), p2b = positions.get(b.to);
-      return (p2a.x - p1a.x) - (p2b.x - p1b.x);
+      const p1a = positions.get(a.from),
+        p2a = positions.get(a.to);
+      const p1b = positions.get(b.from),
+        p2b = positions.get(b.to);
+      return p2a.x - p1a.x - (p2b.x - p1b.x);
     });
 
     // Check states with self loops
-    const statesWithTopSelfLoop = new Set(selfLoops.filter(sl => {
-      const p = positions.get(sl.from);
-      return p && !p.isTrap && !isTrapState(sl.from);
-    }).map(sl => sl.from));
+    const statesWithTopSelfLoop = new Set(
+      selfLoops
+        .filter((sl) => {
+          const p = positions.get(sl.from);
+          return p && !p.isTrap && !isTrapState(sl.from);
+        })
+        .map((sl) => sl.from)
+    );
 
-    const statesWithBottomSelfLoop = new Set(selfLoops.filter(sl => {
-      const p = positions.get(sl.from);
-      return p && (p.isTrap || isTrapState(sl.from));
-    }).map(sl => sl.from));
+    const statesWithBottomSelfLoop = new Set(
+      selfLoops
+        .filter((sl) => {
+          const p = positions.get(sl.from);
+          return p && (p.isTrap || isTrapState(sl.from));
+        })
+        .map((sl) => sl.from)
+    );
 
     // Assign arch apex Y coordinates
     backwardEdges.forEach((t, idx) => {
@@ -505,12 +879,16 @@ export class GraphRenderer {
       const p2 = positions.get(t.to);
       let localMinY = Math.min(p1.y, p2.y);
       for (const [id, pos] of positions.entries()) {
-        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
-          const effectiveY = statesWithTopSelfLoop.has(id) ? (pos.y - 70) : pos.y;
+        if (
+          pos.x >= Math.min(p1.x, p2.x) - 10 &&
+          pos.x <= Math.max(p1.x, p2.x) + 10
+        ) {
+          const effectiveY = statesWithTopSelfLoop.has(id) ? pos.y - 70 : pos.y;
           if (effectiveY < localMinY) localMinY = effectiveY;
         }
       }
-      t._archY = (localMinY - R) - 45 - (idx * 26) - (Math.abs(p1.layer - p2.layer) * 4);
+      t._archY =
+        localMinY - R - 45 - idx * 26 - Math.abs(p1.layer - p2.layer) * 4;
     });
 
     bypassEdges.forEach((t, idx) => {
@@ -518,12 +896,18 @@ export class GraphRenderer {
       const p2 = positions.get(t.to);
       let localMaxY = Math.max(p1.y, p2.y);
       for (const [id, pos] of positions.entries()) {
-        if (pos.x >= Math.min(p1.x, p2.x) - 10 && pos.x <= Math.max(p1.x, p2.x) + 10) {
-          const effectiveY = statesWithBottomSelfLoop.has(id) ? (pos.y + 75) : pos.y;
+        if (
+          pos.x >= Math.min(p1.x, p2.x) - 10 &&
+          pos.x <= Math.max(p1.x, p2.x) + 10
+        ) {
+          const effectiveY = statesWithBottomSelfLoop.has(id)
+            ? pos.y + 75
+            : pos.y;
           if (effectiveY > localMaxY) localMaxY = effectiveY;
         }
       }
-      t._archY = (localMaxY + R) + 45 + (idx * 26) + (Math.abs(p2.layer - p1.layer) * 4);
+      t._archY =
+        localMaxY + R + 45 + idx * 26 + Math.abs(p2.layer - p1.layer) * 4;
     });
 
     // Prepare list of edge rendering items
@@ -551,7 +935,14 @@ export class GraphRenderer {
         const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
         const labelX = p1.x;
         const labelY = p1.y + r + 60;
-        edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: true, isSelfLoop: true });
+        edgeRenderItems.push({
+          t,
+          pathD,
+          labelX,
+          labelY,
+          isTrap: true,
+          isSelfLoop: true,
+        });
       } else {
         const sx = p1.x + r * Math.cos(-Math.PI / 2 - spread);
         const sy = p1.y + r * Math.sin(-Math.PI / 2 - spread);
@@ -566,7 +957,14 @@ export class GraphRenderer {
         const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
         const labelX = p1.x;
         const labelY = p1.y - r - 60;
-        edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: false, isSelfLoop: true });
+        edgeRenderItems.push({
+          t,
+          pathD,
+          labelX,
+          labelY,
+          isTrap: false,
+          isSelfLoop: true,
+        });
       }
     }
 
@@ -593,7 +991,14 @@ export class GraphRenderer {
       const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
       const labelX = (sx + ex) / 2;
       const labelY = archY - 14;
-      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+      edgeRenderItems.push({
+        t,
+        pathD,
+        labelX,
+        labelY,
+        isTrap: isToTrap,
+        isSelfLoop: false,
+      });
     }
 
     // 3. Bypass Edges
@@ -619,7 +1024,14 @@ export class GraphRenderer {
       const pathD = `M ${sx} ${sy} C ${ctrlX1} ${ctrlY1}, ${ctrlX2} ${ctrlY2}, ${ex} ${ey}`;
       const labelX = (sx + ex) / 2;
       const labelY = archY + 14;
-      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+      edgeRenderItems.push({
+        t,
+        pathD,
+        labelX,
+        labelY,
+        isTrap: isToTrap,
+        isSelfLoop: false,
+      });
     }
 
     // 4. Regular Edges
@@ -638,7 +1050,7 @@ export class GraphRenderer {
       const hasReverse = existingPairs.has(`${t.to}->${t.from}`);
       const isSameLayer = p1.layer === p2.layer;
 
-      let pathD = '';
+      let pathD = "";
       let labelX = 0;
       let labelY = 0;
 
@@ -656,7 +1068,7 @@ export class GraphRenderer {
           labelY = (sy + ey) / 2;
         } else if (p1.x > p2.x) {
           const spanX = Math.abs(p1.x - p2.x);
-          const isUpper = (p1.y < centerY) || (p1.y <= p2.y && p2.y <= centerY);
+          const isUpper = p1.y < centerY || (p1.y <= p2.y && p2.y <= centerY);
 
           if (isUpper) {
             const archY = Math.min(p1.y, p2.y) - 52;
@@ -732,7 +1144,14 @@ export class GraphRenderer {
         labelY = (sy + ey) / 2;
       }
 
-      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: isToTrap, isSelfLoop: false });
+      edgeRenderItems.push({
+        t,
+        pathD,
+        labelX,
+        labelY,
+        isTrap: isToTrap,
+        isSelfLoop: false,
+      });
     }
 
     // 5. Trap Edges
@@ -755,21 +1174,23 @@ export class GraphRenderer {
       }
 
       // Check if p1 itself has a return loop arching underneath it
-      const hasLowerReturnLoop = regularEdges.some(re => {
+      const hasLowerReturnLoop = regularEdges.some((re) => {
         const rp1 = positions.get(re.from);
         const rp2 = positions.get(re.to);
-        return (re.from === t.from && rp1 && rp2 && rp1.x > rp2.x && rp1.y >= centerY);
+        return (
+          re.from === t.from && rp1 && rp2 && rp1.x > rp2.x && rp1.y >= centerY
+        );
       });
 
-      let pathD = '';
+      let pathD = "";
       let labelX = 0;
       let labelY = 0;
 
       if (belowStates.length > 0) {
         // Upper stacked state: route around the outside of the column via clearance lane
-        const maxBelowY = Math.max(...belowStates.map(s => s.y));
-        const maxColX = Math.max(p1.x, ...belowStates.map(s => s.x));
-        const minColX = Math.min(p1.x, ...belowStates.map(s => s.x));
+        const maxBelowY = Math.max(...belowStates.map((s) => s.y));
+        const maxColX = Math.max(p1.x, ...belowStates.map((s) => s.x));
+        const minColX = Math.min(p1.x, ...belowStates.map((s) => s.x));
 
         if (p1.x >= p2.x) {
           // Route around the RIGHT side
@@ -833,7 +1254,14 @@ export class GraphRenderer {
         labelY = (sy + ey) / 2;
       }
 
-      edgeRenderItems.push({ t, pathD, labelX, labelY, isTrap: true, isSelfLoop: false });
+      edgeRenderItems.push({
+        t,
+        pathD,
+        labelX,
+        labelY,
+        isTrap: true,
+        isSelfLoop: false,
+      });
     }
 
     // Prepare labels for collision relaxation pass
@@ -848,13 +1276,16 @@ export class GraphRenderer {
         y: item.labelY,
         w: pillW,
         h: pillH,
-        item
+        item,
       };
     });
 
-    GraphRenderer.resolveLabelCollisions(labelData, Array.from(positions.values()));
+    GraphRenderer.resolveLabelCollisions(
+      labelData,
+      Array.from(positions.values())
+    );
 
-    labelData.forEach(ld => {
+    labelData.forEach((ld) => {
       ld.item.labelX = ld.x;
       ld.item.labelY = ld.y;
     });
@@ -899,7 +1330,7 @@ export class GraphRenderer {
         const p1 = positions.get(t.from);
         const p2 = positions.get(t.to);
         if (p1 && p2 && p1.x > p2.x) {
-          const isUpper = (p1.y < centerY) || (p1.y <= p2.y && p2.y <= centerY);
+          const isUpper = p1.y < centerY || (p1.y <= p2.y && p2.y <= centerY);
           if (isUpper) {
             const archY = Math.min(p1.y, p2.y) - 52;
             if (archY - 35 < minObsY) minObsY = archY - 35;
@@ -930,7 +1361,7 @@ export class GraphRenderer {
           <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="${edgeDeadStroke}" />
         </marker>
         <filter id="${shadowId}" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-opacity="${isDark ? '0.45' : '0.18'}" />
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" flood-opacity="${isDark ? "0.45" : "0.18"}" />
         </filter>
       </defs>
       <g class="graph-content" transform="translate(0, ${yShift})">`;
@@ -943,23 +1374,30 @@ export class GraphRenderer {
       const targetX = pos.x - r - 3;
       svg += `
         <g class="start-indicator">
-          <line x1="${startX}" y1="${pos.y}" x2="${targetX}" y2="${pos.y}" stroke="${startArrowColor}" stroke-width="3.6" marker-end="url(#${startMarkerId})" />
+          <line x1="${startX}" y1="${pos.y}" x2="${targetX}" y2="${pos.y}" stroke="${startArrowColor}" stroke-width="4.2" marker-end="url(#${startMarkerId})" />
           <text x="${startX - 6}" y="${pos.y + 5}" fill="${startArrowColor}" font-size="13.5" font-weight="800" font-family="'JetBrains Mono', monospace" letter-spacing="0.02em" text-anchor="end">start</text>
         </g>`;
     }
 
     // Helper to render an edge with a styled pill label
-    const renderEdgeMarkup = (pathD, labelX, labelY, symbol, isTrap, isSelfLoop = false) => {
+    const renderEdgeMarkup = (
+      pathD,
+      labelX,
+      labelY,
+      symbol,
+      isTrap,
+      isSelfLoop = false
+    ) => {
       const stroke = isTrap ? edgeDeadStroke : edgeStroke;
       const marker = isTrap ? `url(#${deadMarkerId})` : `url(#${markerId})`;
-      const strokeWidth = isTrap ? '2.8' : '3.2';
-      const dashArray = isTrap ? 'stroke-dasharray="7,5"' : '';
+      const strokeWidth = isTrap ? "3.6" : "3.6";
+      const dashArray = isTrap ? 'stroke-dasharray="7,5"' : "";
 
       const pillW = Math.max(34, symbol.length * 8.6 + 20);
       const pillH = 25;
 
       return `
-        <g class="edge${isSelfLoop ? ' self-loop' : ''}">
+        <g class="edge${isSelfLoop ? " self-loop" : ""}">
           <path d="${pathD}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" ${dashArray} marker-end="${marker}" />
           <rect x="${labelX - pillW / 2}" y="${labelY - pillH / 2}" width="${pillW}" height="${pillH}" rx="6.5" fill="${edgePillFill}" stroke="${edgePillStroke}" stroke-width="2.2" filter="url(#${shadowId})" />
           <text x="${labelX}" y="${labelY + 4.5}" fill="${edgeTextFill}" font-size="13" font-weight="800" font-family="'JetBrains Mono', monospace" letter-spacing="0.01em" text-anchor="middle">${symbol}</text>
@@ -968,7 +1406,14 @@ export class GraphRenderer {
 
     // Render all edge markups
     for (const item of edgeRenderItems) {
-      svg += renderEdgeMarkup(item.pathD, item.labelX, item.labelY, item.t.symbol, item.isTrap, item.isSelfLoop);
+      svg += renderEdgeMarkup(
+        item.pathD,
+        item.labelX,
+        item.labelY,
+        item.t.symbol,
+        item.isTrap,
+        item.isSelfLoop
+      );
     }
 
     // 7. Draw Nodes (States) - Color-coded by semantic role with double circle for accept
@@ -979,7 +1424,13 @@ export class GraphRenderer {
       const r = pos.r || R;
       const isAccept = acceptStateIds.has(state.id);
       const isStart = state.id === startStateId;
-      const isTrap = state.id === 'Φ' || state.id === 'trap' || state.id.toLowerCase().includes('trap') || state.id.toLowerCase().includes('dead');
+      const isTrap =
+        state.id === "φ" ||
+        state.id === "Φ" ||
+        state.id === "trap" ||
+        (typeof state.id === "string" &&
+          (state.id.toLowerCase().includes("trap") ||
+            state.id.toLowerCase().includes("dead")));
       const label = state.label || state.id;
 
       let fill = regularNodeFill;
@@ -996,19 +1447,26 @@ export class GraphRenderer {
         stroke = startNodeStroke;
       }
 
-      const fontSize = label.length > 8 ? '9' : (label.length > 5 ? '10.5' : (label.length > 3 ? '12' : '13.5'));
+      const fontSize =
+        label.length > 8
+          ? "9"
+          : label.length > 5
+            ? "10.5"
+            : label.length > 3
+              ? "12"
+              : "13.5";
 
       svg += `
         <g class="node" data-id="${state.id}" transform="translate(${pos.x}, ${pos.y})">
-          <circle r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="2.4" filter="url(#${shadowId})" />`;
+          <circle r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${isStart || isAccept || isTrap ? "3.5" : "3.0"}" filter="url(#${shadowId})" />`;
 
       if (isAccept) {
         svg += `
-          <circle class="accept-inner" r="${r - 5.5}" fill="none" stroke="${stroke}" stroke-width="2.0" />`;
+          <circle class="accept-inner" r="${r - 5.5}" fill="none" stroke="${stroke}" stroke-width="2.6" />`;
       }
 
       svg += `
-          <text dy="4.0" fill="${stateTextFill}" font-size="${fontSize}" font-family="'JetBrains Mono', monospace" font-weight="700" text-anchor="middle">${label}</text>
+          <text dy="5.0" fill="${stateTextFill}" font-size="${fontSize}" font-family="'JetBrains Mono', monospace" font-weight="800" text-anchor="middle">${label}</text>
         </g>`;
     }
 
@@ -1036,7 +1494,7 @@ export class GraphRenderer {
     const svgMarkup = GraphRenderer.createSvgString(graphModel, {
       ...options,
       width,
-      height
+      height,
     });
 
     container.innerHTML = `
@@ -1052,8 +1510,8 @@ export class GraphRenderer {
       </div>
     `;
 
-    const contentGroup = container.querySelector('.graph-content');
-    const host = container.querySelector('.svg-host');
+    const contentGroup = container.querySelector(".graph-content");
+    const host = container.querySelector(".svg-host");
 
     let scale = 1;
     let translateX = 0;
@@ -1064,7 +1522,10 @@ export class GraphRenderer {
 
     const updateTransform = () => {
       if (contentGroup) {
-        contentGroup.setAttribute('transform', `translate(${translateX}, ${translateY}) scale(${scale})`);
+        contentGroup.setAttribute(
+          "transform",
+          `translate(${translateX}, ${translateY}) scale(${scale})`
+        );
       }
     };
 
@@ -1085,9 +1546,13 @@ export class GraphRenderer {
       updateTransform();
     };
 
-    container.querySelector('.btn-zoom-in')?.addEventListener('click', zoomIn);
-    container.querySelector('.btn-zoom-out')?.addEventListener('click', zoomOut);
-    container.querySelector('.btn-zoom-reset')?.addEventListener('click', resetZoom);
+    container.querySelector(".btn-zoom-in")?.addEventListener("click", zoomIn);
+    container
+      .querySelector(".btn-zoom-out")
+      ?.addEventListener("click", zoomOut);
+    container
+      .querySelector(".btn-zoom-reset")
+      ?.addEventListener("click", resetZoom);
 
     const onMouseMove = (e) => {
       if (!isDragging) return;
@@ -1099,24 +1564,24 @@ export class GraphRenderer {
     const onMouseUp = () => {
       if (isDragging) {
         isDragging = false;
-        if (host) host.style.cursor = 'grab';
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
+        if (host) host.style.cursor = "grab";
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
       }
     };
 
     // Pan & Drag events: attach to window only while dragging
     const onMouseDown = (e) => {
-      if (e.target.closest('button')) return;
+      if (e.target.closest("button")) return;
       isDragging = true;
-      host.style.cursor = 'grabbing';
+      host.style.cursor = "grabbing";
       startX = e.clientX - translateX;
       startY = e.clientY - translateY;
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
     };
 
-    host?.addEventListener('mousedown', onMouseDown);
+    host?.addEventListener("mousedown", onMouseDown);
 
     // Wheel zoom
     const onWheel = (e) => {
@@ -1125,19 +1590,19 @@ export class GraphRenderer {
       scale = Math.max(0.3, Math.min(3.0, scale * zoomFactor));
       updateTransform();
     };
-    host?.addEventListener('wheel', onWheel, { passive: false });
+    host?.addEventListener("wheel", onWheel, { passive: false });
 
     return {
       zoomIn,
       zoomOut,
       resetZoom,
       destroy: () => {
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        host?.removeEventListener('mousedown', onMouseDown);
-        host?.removeEventListener('wheel', onWheel);
-        container.innerHTML = '';
-      }
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+        host?.removeEventListener("mousedown", onMouseDown);
+        host?.removeEventListener("wheel", onWheel);
+        container.innerHTML = "";
+      },
     };
   }
 }

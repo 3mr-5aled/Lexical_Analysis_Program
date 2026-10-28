@@ -32,10 +32,12 @@
 ### Task 1: Regex Parser & Postfix Converter
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/regex-parser.js`
 - Create: `E:/Compiler interactive html/tests/regex-parser.test.js`
 
 **Interfaces:**
+
 - Consumes: Raw regular expression string.
 - Produces: `RegexParser.parse(regex: string) -> { tokens: string[], postfix: string[], alphabet: string[], error: string|null }`
 
@@ -43,32 +45,32 @@
 
 ```javascript
 // E:/Compiler interactive html/tests/regex-parser.test.js
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { RegexParser } from '../js/regex-parser.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { RegexParser } from "../js/regex-parser.js";
 
-test('parses simple concatenation and inserts explicit concat operator', () => {
-  const result = RegexParser.parse('ab');
+test("parses simple concatenation and inserts explicit concat operator", () => {
+  const result = RegexParser.parse("ab");
   assert.equal(result.error, null);
-  assert.deepEqual(result.postfix, ['a', 'b', '.']);
-  assert.deepEqual(result.alphabet, ['a', 'b']);
+  assert.deepEqual(result.postfix, ["a", "b", "."]);
+  assert.deepEqual(result.alphabet, ["a", "b"]);
 });
 
-test('handles union and kleene star with precedence', () => {
-  const result = RegexParser.parse('(a|b)*a');
+test("handles union and kleene star with precedence", () => {
+  const result = RegexParser.parse("(a|b)*a");
   assert.equal(result.error, null);
-  assert.deepEqual(result.postfix, ['a', 'b', '|', '*', 'a', '.']);
+  assert.deepEqual(result.postfix, ["a", "b", "|", "*", "a", "."]);
 });
 
-test('handles epsilon symbols and plus operator', () => {
-  const result = RegexParser.parse('a+ε');
+test("handles epsilon symbols and plus operator", () => {
+  const result = RegexParser.parse("a+ε");
   assert.equal(result.error, null);
-  assert.deepEqual(result.postfix, ['a', '+', 'ε', '.']);
-  assert.deepEqual(result.alphabet, ['a']); // epsilon excluded from alphabet
+  assert.deepEqual(result.postfix, ["a", "+", "ε", "."]);
+  assert.deepEqual(result.alphabet, ["a"]); // epsilon excluded from alphabet
 });
 
-test('reports syntax error on unmatched parenthesis', () => {
-  const result = RegexParser.parse('(a|b');
+test("reports syntax error on unmatched parenthesis", () => {
+  const result = RegexParser.parse("(a|b");
   assert.ok(result.error !== null);
 });
 ```
@@ -92,10 +94,12 @@ Expected: All 4 tests PASS.
 ### Task 2: Thompson's Construction (RE $\to$ NFA)
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/thompson.js`
 - Create: `E:/Compiler interactive html/tests/thompson.test.js`
 
 **Interfaces:**
+
 - Consumes: `postfix: string[]` from Task 1.
 - Produces: `Thompson.build(postfix: string[]) -> { states: number[], startState: number, acceptStates: number[], transitions: Array<{from: number, to: number, symbol: string}> }`
 
@@ -103,38 +107,38 @@ Expected: All 4 tests PASS.
 
 ```javascript
 // E:/Compiler interactive html/tests/thompson.test.js
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { RegexParser } from '../js/regex-parser.js';
-import { Thompson } from '../js/thompson.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { RegexParser } from "../js/regex-parser.js";
+import { Thompson } from "../js/thompson.js";
 
-test('constructs NFA for single character', () => {
-  const parsed = RegexParser.parse('a');
+test("constructs NFA for single character", () => {
+  const parsed = RegexParser.parse("a");
   const nfa = Thompson.build(parsed.postfix);
   assert.equal(nfa.transitions.length, 1);
-  assert.equal(nfa.transitions[0].symbol, 'a');
+  assert.equal(nfa.transitions[0].symbol, "a");
   assert.equal(nfa.startState, nfa.transitions[0].from);
   assert.ok(nfa.acceptStates.includes(nfa.transitions[0].to));
 });
 
-test('constructs NFA for concatenation a.b', () => {
-  const parsed = RegexParser.parse('ab');
+test("constructs NFA for concatenation a.b", () => {
+  const parsed = RegexParser.parse("ab");
   const nfa = Thompson.build(parsed.postfix);
   // accept of a connects to start of b via epsilon
-  const eps = nfa.transitions.filter(t => t.symbol === 'ε');
+  const eps = nfa.transitions.filter((t) => t.symbol === "ε");
   assert.ok(eps.length >= 1);
 });
 
-test('constructs NFA for union a|b', () => {
-  const parsed = RegexParser.parse('a|b');
+test("constructs NFA for union a|b", () => {
+  const parsed = RegexParser.parse("a|b");
   const nfa = Thompson.build(parsed.postfix);
   // new start branches to 2 starts via epsilon, 2 accepts branch to new accept via epsilon
-  const eps = nfa.transitions.filter(t => t.symbol === 'ε');
+  const eps = nfa.transitions.filter((t) => t.symbol === "ε");
   assert.equal(eps.length, 4);
 });
 
-test('constructs NFA for (ab|ac)* matching Lab 4 state structure', () => {
-  const parsed = RegexParser.parse('(ab|ac)*');
+test("constructs NFA for (ab|ac)* matching Lab 4 state structure", () => {
+  const parsed = RegexParser.parse("(ab|ac)*");
   const nfa = Thompson.build(parsed.postfix);
   assert.ok(nfa.states.length > 0);
   assert.ok(nfa.acceptStates.length === 1);
@@ -160,10 +164,12 @@ Expected: All 4 tests PASS.
 ### Task 3: Subset Construction (NFA $\to$ DFA) & Intermediate Table
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/subset-construction.js`
 - Create: `E:/Compiler interactive html/tests/subset.test.js`
 
 **Interfaces:**
+
 - Consumes: NFA from Task 2, alphabet from Task 1.
 - Produces: `SubsetConstruction.convert(nfa, alphabet) -> { intermediateTable: Array<{symbol: string, appears: number, goesTo: number[]}>, dfa: { states: Array<{id: string, nfaStates: number[], isStart: boolean, isAccept: boolean}>, alphabet: string[], transitions: Record<string, Record<string, string>>, trapState: string } }`
 
@@ -171,34 +177,34 @@ Expected: All 4 tests PASS.
 
 ```javascript
 // E:/Compiler interactive html/tests/subset.test.js
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { RegexParser } from '../js/regex-parser.js';
-import { Thompson } from '../js/thompson.js';
-import { SubsetConstruction } from '../js/subset-construction.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { RegexParser } from "../js/regex-parser.js";
+import { Thompson } from "../js/thompson.js";
+import { SubsetConstruction } from "../js/subset-construction.js";
 
-test('computes epsilon closure and intermediate table for (ab|ac)*', () => {
-  const parsed = RegexParser.parse('(ab|ac)*');
+test("computes epsilon closure and intermediate table for (ab|ac)*", () => {
+  const parsed = RegexParser.parse("(ab|ac)*");
   const nfa = Thompson.build(parsed.postfix);
   const result = SubsetConstruction.convert(nfa, parsed.alphabet);
-  
+
   assert.ok(result.intermediateTable.length > 0);
   // Verify start state d0 exists and is marked
-  const start = result.dfa.states.find(s => s.isStart);
+  const start = result.dfa.states.find((s) => s.isStart);
   assert.ok(start !== undefined);
-  assert.equal(start.id, 'd0');
-  
+  assert.equal(start.id, "d0");
+
   // Verify trap state Φ is present
-  assert.ok(result.dfa.states.some(s => s.id === 'Φ'));
+  assert.ok(result.dfa.states.some((s) => s.id === "Φ"));
 });
 
-test('generates correct DFA transition rows for (a|b)*a', () => {
-  const parsed = RegexParser.parse('(a|b)*a');
+test("generates correct DFA transition rows for (a|b)*a", () => {
+  const parsed = RegexParser.parse("(a|b)*a");
   const nfa = Thompson.build(parsed.postfix);
   const result = SubsetConstruction.convert(nfa, parsed.alphabet);
-  
+
   assert.ok(result.dfa.states.length >= 2);
-  const acceptStates = result.dfa.states.filter(s => s.isAccept);
+  const acceptStates = result.dfa.states.filter((s) => s.isAccept);
   assert.ok(acceptStates.length >= 1);
 });
 ```
@@ -222,10 +228,12 @@ Expected: All tests PASS.
 ### Task 4: Hopcroft DFA Minimization & Equivalence Partitioning
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/hopcroft-minimization.js`
 - Create: `E:/Compiler interactive html/tests/hopcroft.test.js`
 
 **Interfaces:**
+
 - Consumes: DFA from Task 3.
 - Produces: `HopcroftMinimizer.minimize(dfa) -> { equivalenceRounds: Array<{ round: number, partition: string[][], explanations: string[] }>, minimizedDfa: { states: Array<{id: string, originalStates: string[], isStart: boolean, isAccept: boolean}>, alphabet: string[], transitions: Record<string, Record<string, string>>, trapState: string } }`
 
@@ -233,31 +241,31 @@ Expected: All tests PASS.
 
 ```javascript
 // E:/Compiler interactive html/tests/hopcroft.test.js
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { RegexParser } from '../js/regex-parser.js';
-import { Thompson } from '../js/thompson.js';
-import { SubsetConstruction } from '../js/subset-construction.js';
-import { HopcroftMinimizer } from '../js/hopcroft-minimization.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { RegexParser } from "../js/regex-parser.js";
+import { Thompson } from "../js/thompson.js";
+import { SubsetConstruction } from "../js/subset-construction.js";
+import { HopcroftMinimizer } from "../js/hopcroft-minimization.js";
 
-test('partitions (ab|ac)* into 0-Equivalence, 1-Equivalence and produces minimized DFA', () => {
-  const parsed = RegexParser.parse('(ab|ac)*');
+test("partitions (ab|ac)* into 0-Equivalence, 1-Equivalence and produces minimized DFA", () => {
+  const parsed = RegexParser.parse("(ab|ac)*");
   const nfa = Thompson.build(parsed.postfix);
   const { dfa } = SubsetConstruction.convert(nfa, parsed.alphabet);
   const result = HopcroftMinimizer.minimize(dfa);
-  
+
   assert.ok(result.equivalenceRounds.length >= 2);
   // Round 0 must have 2 groups: non-accepting (with Φ) and accepting
   assert.equal(result.equivalenceRounds[0].partition.length, 2);
   assert.ok(result.minimizedDfa.states.length <= dfa.states.length);
 });
 
-test('handles already-minimal DFA without infinite loop', () => {
-  const parsed = RegexParser.parse('ab');
+test("handles already-minimal DFA without infinite loop", () => {
+  const parsed = RegexParser.parse("ab");
   const nfa = Thompson.build(parsed.postfix);
   const { dfa } = SubsetConstruction.convert(nfa, parsed.alphabet);
   const result = HopcroftMinimizer.minimize(dfa);
-  
+
   assert.ok(result.equivalenceRounds.length >= 1);
   assert.ok(result.minimizedDfa.states.length > 0);
 });
@@ -282,12 +290,14 @@ Expected: All tests PASS.
 ### Task 5: String Simulator & Accepted/Rejected Generator
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/string-simulator.js`
 - Create: `E:/Compiler interactive html/tests/simulator.test.js`
 
 **Interfaces:**
+
 - Consumes: Minimized DFA, alphabet.
-- Produces: 
+- Produces:
   - `StringSimulator.simulate(dfa, inputString: string) -> { accepted: boolean, path: Array<{state: string, symbol: string, nextState: string}>, finalState: string, reason: string }`
   - `StringSimulator.generateExamples(dfa, maxAccepted: number = 3, maxRejected: number = 3) -> { accepted: string[], rejected: string[] }`
 
@@ -295,33 +305,33 @@ Expected: All tests PASS.
 
 ```javascript
 // E:/Compiler interactive html/tests/simulator.test.js
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { RegexParser } from '../js/regex-parser.js';
-import { Thompson } from '../js/thompson.js';
-import { SubsetConstruction } from '../js/subset-construction.js';
-import { HopcroftMinimizer } from '../js/hopcroft-minimization.js';
-import { StringSimulator } from '../js/string-simulator.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { RegexParser } from "../js/regex-parser.js";
+import { Thompson } from "../js/thompson.js";
+import { SubsetConstruction } from "../js/subset-construction.js";
+import { HopcroftMinimizer } from "../js/hopcroft-minimization.js";
+import { StringSimulator } from "../js/string-simulator.js";
 
-test('simulates strings on minimized DFA for a|abc*', () => {
-  const parsed = RegexParser.parse('a|abc*');
+test("simulates strings on minimized DFA for a|abc*", () => {
+  const parsed = RegexParser.parse("a|abc*");
   const nfa = Thompson.build(parsed.postfix);
   const { dfa } = SubsetConstruction.convert(nfa, parsed.alphabet);
   const { minimizedDfa } = HopcroftMinimizer.minimize(dfa);
-  
-  assert.equal(StringSimulator.simulate(minimizedDfa, 'a').accepted, true);
-  assert.equal(StringSimulator.simulate(minimizedDfa, 'ab').accepted, true);
-  assert.equal(StringSimulator.simulate(minimizedDfa, 'abccc').accepted, true);
-  assert.equal(StringSimulator.simulate(minimizedDfa, 'b').accepted, false);
-  assert.equal(StringSimulator.simulate(minimizedDfa, 'ac').accepted, false);
+
+  assert.equal(StringSimulator.simulate(minimizedDfa, "a").accepted, true);
+  assert.equal(StringSimulator.simulate(minimizedDfa, "ab").accepted, true);
+  assert.equal(StringSimulator.simulate(minimizedDfa, "abccc").accepted, true);
+  assert.equal(StringSimulator.simulate(minimizedDfa, "b").accepted, false);
+  assert.equal(StringSimulator.simulate(minimizedDfa, "ac").accepted, false);
 });
 
-test('generates at least 3 accepted and 3 rejected strings for non-trivial regex', () => {
-  const parsed = RegexParser.parse('(ab|ac)*');
+test("generates at least 3 accepted and 3 rejected strings for non-trivial regex", () => {
+  const parsed = RegexParser.parse("(ab|ac)*");
   const nfa = Thompson.build(parsed.postfix);
   const { dfa } = SubsetConstruction.convert(nfa, parsed.alphabet);
   const { minimizedDfa } = HopcroftMinimizer.minimize(dfa);
-  
+
   const examples = StringSimulator.generateExamples(minimizedDfa, 3, 3);
   assert.equal(examples.accepted.length, 3);
   assert.equal(examples.rejected.length, 3);
@@ -353,9 +363,11 @@ Expected: All tests PASS.
 ### Task 6: High-Performance SVG Graph Layout & Renderer
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/js/graph-renderer.js`
 
 **Interfaces:**
+
 - Consumes: Graph model (states, transitions, startState, acceptStates, showTrapState: boolean).
 - Produces: `GraphRenderer.render(containerElement, graphModel, options: { isDark: boolean }) -> { zoomIn(), zoomOut(), resetZoom(), destroy() }`
 
@@ -375,11 +387,13 @@ Expected: All tests PASS.
 ### Task 7: UI Shell, CSS Styling, Themes & App Controller
 
 **Files:**
+
 - Create: `E:/Compiler interactive html/index.html`
 - Create: `E:/Compiler interactive html/css/style.css`
 - Create: `E:/Compiler interactive html/js/app.js`
 
 **Interfaces:**
+
 - Connects UI user inputs with Tasks 1–6.
 - Manages theme toggle, presets, collapsible cards, on-demand rendering guards, and simulator interactions.
 

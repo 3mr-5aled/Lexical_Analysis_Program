@@ -6,7 +6,7 @@
  * 2. Full DFA transition table with state names d0, d1, ... and dead state Φ.
  */
 export class SubsetConstruction {
-  static TRAP_STATE = 'Φ';
+  static TRAP_STATE = "φ";
 
   /**
    * Computes the ε-closure of a set of NFA states.
@@ -22,7 +22,7 @@ export class SubsetConstruction {
     // Build ε-adjacency list
     const epsAdj = new Map();
     for (const t of transitions) {
-      if (t.symbol === 'ε' || t.symbol === 'ϵ') {
+      if (t.symbol === "ε" || t.symbol === "ϵ") {
         if (!epsAdj.has(t.from)) epsAdj.set(t.from, []);
         epsAdj.get(t.from).push(t.to);
       }
@@ -72,7 +72,7 @@ export class SubsetConstruction {
 
     for (const sym of alphabet) {
       // Find all transitions on symbol
-      const matching = nfa.transitions.filter(t => t.symbol === sym);
+      const matching = nfa.transitions.filter((t) => t.symbol === sym);
       // Group by source state
       const appearsMap = new Map();
       for (const t of matching) {
@@ -81,13 +81,16 @@ export class SubsetConstruction {
       }
 
       for (const [fromState, destStates] of appearsMap.entries()) {
-        const closure = SubsetConstruction.epsilonClosure(destStates, nfa.transitions);
-        const isAccept = closure.some(s => acceptSet.has(s));
+        const closure = SubsetConstruction.epsilonClosure(
+          destStates,
+          nfa.transitions
+        );
+        const isAccept = closure.some((s) => acceptSet.has(s));
         rows.push({
           symbol: sym,
           appears: fromState,
           goesTo: closure,
-          isAccept
+          isAccept,
         });
       }
     }
@@ -115,11 +118,17 @@ export class SubsetConstruction {
    * }}
    */
   static convert(nfa, alphabet) {
-    const intermediateTable = SubsetConstruction.buildIntermediateTable(nfa, alphabet);
+    const intermediateTable = SubsetConstruction.buildIntermediateTable(
+      nfa,
+      alphabet
+    );
     const acceptSet = new Set(nfa.acceptStates);
 
-    const startClosure = SubsetConstruction.epsilonClosure(nfa.startState, nfa.transitions);
-    const keyOf = (arr) => arr.join(',');
+    const startClosure = SubsetConstruction.epsilonClosure(
+      nfa.startState,
+      nfa.transitions
+    );
+    const keyOf = (arr) => arr.join(",");
 
     const dfaStates = [];
     const stateMap = new Map(); // key -> id
@@ -128,12 +137,12 @@ export class SubsetConstruction {
     let stateCounter = 0;
     const addDfaState = (nfaStates, isStart = false) => {
       const id = `d${stateCounter++}`;
-      const isAccept = nfaStates.some(s => acceptSet.has(s));
+      const isAccept = nfaStates.some((s) => acceptSet.has(s));
       const stateObj = {
         id,
         nfaStates,
         isStart,
-        isAccept
+        isAccept,
       };
       dfaStates.push(stateObj);
       stateMap.set(keyOf(nfaStates), id);
@@ -149,12 +158,19 @@ export class SubsetConstruction {
       const current = queue.shift();
 
       for (const sym of alphabet) {
-        const directDest = SubsetConstruction.move(current.nfaStates, sym, nfa.transitions);
+        const directDest = SubsetConstruction.move(
+          current.nfaStates,
+          sym,
+          nfa.transitions
+        );
         if (directDest.length === 0) {
           transitions[current.id][sym] = SubsetConstruction.TRAP_STATE;
           trapNeeded = true;
         } else {
-          const closure = SubsetConstruction.epsilonClosure(directDest, nfa.transitions);
+          const closure = SubsetConstruction.epsilonClosure(
+            directDest,
+            nfa.transitions
+          );
           const key = keyOf(closure);
           if (!stateMap.has(key)) {
             const newState = addDfaState(closure, false);
@@ -173,11 +189,12 @@ export class SubsetConstruction {
         id: SubsetConstruction.TRAP_STATE,
         nfaStates: [],
         isStart: false,
-        isAccept: false
+        isAccept: false,
       });
       transitions[SubsetConstruction.TRAP_STATE] = {};
       for (const sym of alphabet) {
-        transitions[SubsetConstruction.TRAP_STATE][sym] = SubsetConstruction.TRAP_STATE;
+        transitions[SubsetConstruction.TRAP_STATE][sym] =
+          SubsetConstruction.TRAP_STATE;
       }
     }
 
@@ -187,8 +204,8 @@ export class SubsetConstruction {
         states: dfaStates,
         alphabet,
         transitions,
-        trapState: SubsetConstruction.TRAP_STATE
-      }
+        trapState: SubsetConstruction.TRAP_STATE,
+      },
     };
   }
 }

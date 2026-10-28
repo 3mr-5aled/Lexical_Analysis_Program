@@ -1,0 +1,9 @@
+dist/
+material/
+package-lock.json
+*.min.js
+*.min.css
+*.pdf
+*.pptx
+*.png
+*.ico
